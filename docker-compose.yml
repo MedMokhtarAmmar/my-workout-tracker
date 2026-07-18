@@ -1,0 +1,20 @@
+services:
+  my-workout-tracker:
+    build: .
+    expose:
+      - "3000"
+    volumes:
+      - workout-data:/app/data
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - default
+      - restaurant-app-dist_default
+
+volumes:
+  workout-data:
+
+networks:
+  restaurant-app-dist_default:
+    external: true

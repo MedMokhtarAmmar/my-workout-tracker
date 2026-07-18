@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Workout Tracker — Sign in</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="login-main">
+    <div class="card login-card">
+      <h1>💪 Workout Tracker</h1>
+      <p class="exercise-target">Sign in to log workouts and sync reminders to your Google Calendar.</p>
+      <div id="login-error" class="login-error hidden"></div>
+      <a href="/auth/google" class="primary google-btn">Sign in with Google</a>
+    </div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const error = params.get('error');
+    if (error) {
+      const messages = {
+        not_authorized: "That Google account isn't authorized for this app.",
+        access_denied: 'Sign-in was cancelled.',
+        auth_failed: 'Sign-in failed. Please try again.',
+      };
+      const box = document.getElementById('login-error');
+      box.textContent = messages[error] || 'Sign-in failed. Please try again.';
+      box.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>

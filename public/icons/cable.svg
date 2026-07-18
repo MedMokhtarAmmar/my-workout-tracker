@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- A-frame tower -->
+  <path d="M18 54 30 10 42 54"/>
+  <path d="M22 42h20"/>
+  <!-- pulley at apex -->
+  <circle cx="30" cy="10" r="3.5"/>
+  <!-- cable down to handle -->
+  <path d="M30 13.5V38"/>
+  <path d="M24 38h12l-3 6h-6z"/>
+  <!-- base -->
+  <path d="M12 54h40"/>
+</svg>
