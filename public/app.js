@@ -29,6 +29,56 @@ const EQUIPMENT_ICONS = {
   bodyweight: '/icons/bodyweight.svg',
 };
 
+// Shared Chart.js styling so the two line charts (progress-by-exercise and
+// weight-over-time) match the app's dark theme instead of Chart.js defaults.
+// Reads current theme colors from CSS so charts match dark/light mode
+// automatically (charts are recreated on every load, so this re-evaluates
+// each time — including right after a theme switch).
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function themedLineChartOptions() {
+  const tickColor = cssVar('--muted');
+  const isLight = document.documentElement.dataset.theme === 'light';
+  const gridColor = isLight ? 'rgba(15, 17, 21, 0.06)' : 'rgba(255, 255, 255, 0.06)';
+  return {
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: tickColor, font: { size: 12 } } },
+      tooltip: {
+        backgroundColor: cssVar('--card'),
+        borderColor: cssVar('--border'),
+        borderWidth: 1,
+        titleColor: cssVar('--text'),
+        bodyColor: cssVar('--text'),
+        padding: 10,
+        cornerRadius: 8,
+        displayColors: false,
+      },
+    },
+    scales: {
+      x: { ticks: { color: tickColor, font: { size: 11 } }, grid: { color: gridColor } },
+      y: { ticks: { color: tickColor, font: { size: 11 } }, grid: { color: gridColor }, beginAtZero: false },
+    },
+  };
+}
+
+function themedLineDataset(label, data, color) {
+  return {
+    label,
+    data,
+    borderColor: color,
+    backgroundColor: `${color}1a`,
+    pointBackgroundColor: color,
+    pointBorderColor: cssVar('--card'),
+    pointRadius: 3,
+    pointHoverRadius: 5,
+    tension: 0.25,
+    fill: true,
+  };
+}
+
 function todayISO() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
@@ -50,6 +100,51 @@ function setupTabs() {
       if (btn.dataset.tab === 'stats') { loadBodyStats(); loadNutritionProfile(); }
       if (btn.dataset.tab === 'settings') loadSettings();
     });
+  });
+}
+
+// Sub-tabs within a tab panel (currently just Body Stats: Log / Weight /
+// History / Nutrition). Separate class names from the main tabs above so
+// the two don't interfere with each other.
+function setupSubTabs() {
+  $$('.subtab-nav').forEach((nav) => {
+    const panelGroup = nav.parentElement;
+    nav.querySelectorAll('.segmented-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        nav.querySelectorAll('.segmented-btn').forEach((b) => b.classList.remove('active'));
+        panelGroup.querySelectorAll('.subtab-panel').forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        $(`#subtab-${btn.dataset.subtab}`).classList.add('active');
+        // Chart.js can't size a canvas correctly while its container is
+        // display:none, so nudge it once it's actually visible.
+        if (btn.dataset.subtab === 'weight' && state.weightChart) state.weightChart.resize();
+      });
+    });
+  });
+}
+
+// ---------- Theme ----------
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('theme', theme);
+  $$('#theme-toggle .segmented-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.themeChoice === theme);
+  });
+  // Charts read colors from CSS at creation time, so redraw any that are
+  // currently visible to reflect the new theme immediately.
+  if ($('#tab-stats').classList.contains('active')) loadBodyStats();
+  if ($('#tab-progress').classList.contains('active')) {
+    const exerciseId = $('#exercise-select').value;
+    if (exerciseId) loadProgress(exerciseId);
+  }
+}
+
+function setupThemeToggle() {
+  const current = document.documentElement.dataset.theme || 'dark';
+  $$('#theme-toggle .segmented-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.themeChoice === current);
+    btn.addEventListener('click', () => applyTheme(btn.dataset.themeChoice));
   });
 }
 
@@ -215,6 +310,28 @@ function renderExerciseList(exercises, loggedSets = {}) {
   container.querySelectorAll('.cancel-replace-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => e.target.closest('.replace-picker').classList.add('hidden'));
   });
+  container.querySelectorAll('.howto-btn').forEach((btn) => {
+    btn.addEventListener('click', () => showExerciseHowTo(btn.dataset.sessionExerciseId));
+  });
+}
+
+function youtubeEmbedUrl(url) {
+  const watchMatch = url.match(/[?&]v=([^&]+)/);
+  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  const shortsMatch = url.match(/\/shorts\/([^?&/]+)/);
+  if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
+  return url;
+}
+
+function showExerciseHowTo(sessionExerciseId) {
+  const ex = state.activeExercises.find((e) => String(e.session_exercise_id) === String(sessionExerciseId));
+  if (!ex) return;
+
+  const body = `
+    ${ex.exercise_image ? `<img class="howto-image" src="${ex.exercise_image}" alt="${ex.exercise_name}" />` : ''}
+    ${ex.exercise_video ? `<div class="video-wrapper"><iframe src="${youtubeEmbedUrl(ex.exercise_video)}" title="How to: ${ex.exercise_name}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` : ''}
+  `;
+  openModal(ex.exercise_name, '', body);
 }
 
 async function onSetInputChange(e) {
@@ -507,10 +624,19 @@ function openModal(title, dateStr, bodyHtml) {
   $('#modal-date').textContent = dateStr;
   $('#modal-body').innerHTML = bodyHtml;
   $('#modal-overlay').classList.remove('hidden');
+  // rAF so the "hidden -> visible" transition actually animates instead of
+  // starting from the final state.
+  requestAnimationFrame(() => $('#modal-overlay').classList.add('open'));
 }
 
 function closeModal() {
-  $('#modal-overlay').classList.add('hidden');
+  $('#modal-overlay').classList.remove('open');
+  setTimeout(() => {
+    $('#modal-overlay').classList.add('hidden');
+    // Clears any embedded YouTube iframe so it actually stops playing,
+    // rather than just being hidden and running in the background.
+    $('#modal-body').innerHTML = '';
+  }, 160);
 }
 
 // Shared by the History tab and the Calendar tab — shows a logged session's
@@ -617,9 +743,9 @@ async function loadProgress(exerciseId) {
     type: 'line',
     data: {
       labels,
-      datasets: [{ label: 'Weight (kg)', data: weights, borderColor: '#4f8cff', tension: 0.2 }],
+      datasets: [themedLineDataset('Weight (kg)', weights, '#4f8cff')],
     },
-    options: { scales: { y: { beginAtZero: false } } },
+    options: themedLineChartOptions(),
   });
 
   const tableRows = rows
@@ -660,9 +786,9 @@ async function loadBodyStats() {
     type: 'line',
     data: {
       labels: rows.map((r) => r.date),
-      datasets: [{ label: 'Weight (kg)', data: rows.map((r) => r.weight_kg), borderColor: '#34d399', tension: 0.2 }],
+      datasets: [themedLineDataset('Weight (kg)', rows.map((r) => r.weight_kg), '#34d399')],
     },
-    options: { scales: { y: { beginAtZero: false } } },
+    options: themedLineChartOptions(),
   });
 
   $('#stats-table').innerHTML = `
@@ -817,6 +943,8 @@ async function ensureTimezone() {
 
 function init() {
   setupTabs();
+  setupSubTabs();
+  setupThemeToggle();
   $('#session-date').value = todayISO();
   $('#stats-date').value = todayISO();
   loadTemplates();

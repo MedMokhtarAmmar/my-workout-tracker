@@ -231,6 +231,13 @@ const EXERCISE_MEDIA = {
     image: '/exercise-media/sp500-lat-pulldown-7-1.webp',
     video: 'https://www.youtube.com/watch?v=6mKidNXXeQc',
   },
+  // Same reference photo as the machine above — the plain "Lat Pulldown"
+  // exercise (cable category) is a distinct row, used in the other plans.
+  // Video is its own dedicated tutorial from tutorials.md.
+  'Lat Pulldown': {
+    image: '/exercise-media/sp500-lat-pulldown-7-1.webp',
+    video: 'https://www.youtube.com/shorts/hnSqbBk15tw',
+  },
   'Chest Press Machine': {
     image: '/exercise-media/chest-press-machine.png',
     video: 'https://www.youtube.com/watch?v=vnd-GBtTMLI',
@@ -275,19 +282,41 @@ const EXERCISE_MEDIA = {
     image: '/exercise-media/standing-calf-raise.jpg',
     video: 'https://www.youtube.com/watch?v=GAQ-oohMhog',
   },
+
+  // Video-only tutorials from tutorials.md (no reference photos provided
+  // for these — barbell/bodyweight/cable/dumbbell exercises).
+  'EZ Bar Curl': { video: 'https://www.youtube.com/shorts/yXCFBwZ4LLU' },
+  'Hanging Knee Raise (or Reverse Crunch)': { video: 'https://www.youtube.com/shorts/EVC9d9DaTa8' },
+  'Plank': { video: 'https://www.youtube.com/shorts/xe2MXatLTUw' },
+  'Cable Crunch': { video: 'https://www.youtube.com/shorts/dkGwcfo9zto' },
+  'Cable Lateral Raise': { video: 'https://www.youtube.com/shorts/yHNBM_BTp_s' },
+  'Cable Woodchoppers': { video: 'https://www.youtube.com/shorts/YIU0U_B57rU' },
+  'Face Pull': { video: 'https://www.youtube.com/shorts/IeOqdw9WI90' },
+  'Overhead Rope Triceps Extension': { video: 'https://www.youtube.com/shorts/9Ark9S11uXw' },
+  'Rope Triceps Pushdown': { video: 'https://www.youtube.com/watch?v=-xa-6cQaZKY' },
+  'Seated Cable Row': { video: 'https://www.youtube.com/shorts/qD1WZ5pSuvk' },
+  'Straight Arm Pulldown': { video: 'https://www.youtube.com/shorts/hAMcfubonDc' },
+  'Dumbbell Bicep Curl': { video: 'https://www.youtube.com/shorts/MKWBV29S6c0' },
+  'Dumbbell Lateral Raise': { video: 'https://www.youtube.com/shorts/Kl3LEzQ5Zqs' },
+  'Goblet Squat': { video: 'https://www.youtube.com/shorts/lRYBbchqxtI' },
+  'Hammer Curl': { video: 'https://www.youtube.com/watch?v=BRVDS6HVR9Q' },
+  'Incline Dumbbell Press': { video: 'https://www.youtube.com/shorts/8fXfwG4ftaQ' },
+  'Romanian Deadlift (Dumbbells)': { video: 'https://www.youtube.com/shorts/hu3jRvTc_po' },
+  'Seated Dumbbell Shoulder Press': { video: 'https://www.youtube.com/shorts/k6tzKisR3NY' },
+  'Walking Lunges': { video: 'https://www.youtube.com/shorts/mJilHWIBWO8' },
 };
 
 // Backfills reference image/video for exercises matching EXERCISE_MEDIA by
-// name. Safe to run every startup — never overwrites an existing value.
+// name. Each column is filled independently and only when still empty, so
+// this stays safe to run every startup without clobbering existing data.
 function attachExerciseMedia(db) {
-  const update = db.prepare(`
-    UPDATE exercises SET image_path = ?, video_url = ?
-    WHERE name = ? AND image_path IS NULL AND video_url IS NULL
-  `);
+  const updateImage = db.prepare('UPDATE exercises SET image_path = ? WHERE name = ? AND image_path IS NULL');
+  const updateVideo = db.prepare('UPDATE exercises SET video_url = ? WHERE name = ? AND video_url IS NULL');
   db.exec('BEGIN');
   try {
     for (const [name, media] of Object.entries(EXERCISE_MEDIA)) {
-      update.run(media.image, media.video, name);
+      if (media.image) updateImage.run(media.image, name);
+      if (media.video) updateVideo.run(media.video, name);
     }
     db.exec('COMMIT');
   } catch (err) {

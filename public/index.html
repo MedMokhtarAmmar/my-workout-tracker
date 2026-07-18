@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Workout Tracker</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
 <link rel="stylesheet" href="style.css" />
 <script src="/vendor/chart.js/chart.umd.min.js"></script>
 </head>
 <body>
   <header>
-    <h1>💪 Workout Tracker</h1>
+    <h1><img class="brand-icon" src="/favicon.svg" alt="" /> Workout Tracker</h1>
     <nav>
       <button class="tab-btn active" data-tab="today">Today</button>
       <button class="tab-btn" data-tab="plans">Plans</button>
@@ -118,75 +119,100 @@
 
     <!-- BODY STATS -->
     <section id="tab-stats" class="tab-panel">
-      <div class="card">
-        <h2>Log body stats</h2>
-        <label>Date
-          <input type="date" id="stats-date" />
-        </label>
-        <label>Weight (kg)
-          <input type="number" step="0.1" id="stats-weight" />
-        </label>
-        <label>Waist (cm)
-          <input type="number" step="0.1" id="stats-waist" />
-        </label>
-        <button id="save-stats-btn" class="primary">Save</button>
-      </div>
-      <div class="card">
-        <h2>Weight over time</h2>
-        <canvas id="weight-chart" height="120"></canvas>
-      </div>
-      <div class="card">
-        <h2>History</h2>
-        <div id="stats-table"></div>
+      <nav class="segmented subtab-nav">
+        <button type="button" class="segmented-btn active" data-subtab="log">Log</button>
+        <button type="button" class="segmented-btn" data-subtab="weight">Weight</button>
+        <button type="button" class="segmented-btn" data-subtab="history">History</button>
+        <button type="button" class="segmented-btn" data-subtab="nutrition">Nutrition</button>
+      </nav>
+
+      <div id="subtab-log" class="subtab-panel active">
+        <div class="card">
+          <h2>Log body stats</h2>
+          <label>Date
+            <input type="date" id="stats-date" />
+          </label>
+          <label>Weight (kg)
+            <input type="number" step="0.1" id="stats-weight" />
+          </label>
+          <label>Waist (cm)
+            <input type="number" step="0.1" id="stats-waist" />
+          </label>
+          <button id="save-stats-btn" class="primary">Save</button>
+        </div>
       </div>
 
-      <div class="card">
-        <h2>Nutrition calculator</h2>
-        <label>Age (years)
-          <input type="number" id="nutri-age" min="0" />
-        </label>
-        <label>Sex
-          <select id="nutri-sex">
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-        </label>
-        <label>Weight (kg)
-          <input type="number" step="0.1" id="nutri-weight" />
-        </label>
-        <label>Height (cm)
-          <input type="number" step="0.1" id="nutri-height" />
-        </label>
-        <label>Activity level
-          <select id="nutri-activity">
-            <option value="1.2">Sedentary</option>
-            <option value="1.375">Light exercise</option>
-            <option value="1.55" selected>Moderate exercise</option>
-            <option value="1.725">Heavy exercise</option>
-            <option value="1.9">Athlete</option>
-          </select>
-        </label>
-        <label>Goal
-          <select id="nutri-goal">
-            <option value="lose">Lose fat</option>
-            <option value="maintain" selected>Maintain</option>
-            <option value="gain">Gain muscle</option>
-          </select>
-        </label>
-        <label>Calorie adjustment (optional, kcal — overrides the goal's default)
-          <input type="number" id="nutri-adjustment" placeholder="e.g. -500" />
-        </label>
-        <label>Body fat % (optional, for lean/fat mass)
-          <input type="number" step="0.1" id="nutri-bodyfat" />
-        </label>
-        <button id="nutri-calculate-btn" class="primary">Calculate</button>
+      <div id="subtab-weight" class="subtab-panel">
+        <div class="card">
+          <h2>Weight over time</h2>
+          <canvas id="weight-chart" height="120"></canvas>
+        </div>
+      </div>
 
-        <div id="nutri-results" class="hidden"></div>
+      <div id="subtab-history" class="subtab-panel">
+        <div class="card">
+          <h2>History</h2>
+          <div id="stats-table"></div>
+        </div>
+      </div>
+
+      <div id="subtab-nutrition" class="subtab-panel">
+        <div class="card">
+          <h2>Nutrition calculator</h2>
+          <label>Age (years)
+            <input type="number" id="nutri-age" min="0" />
+          </label>
+          <label>Sex
+            <select id="nutri-sex">
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </label>
+          <label>Weight (kg)
+            <input type="number" step="0.1" id="nutri-weight" />
+          </label>
+          <label>Height (cm)
+            <input type="number" step="0.1" id="nutri-height" />
+          </label>
+          <label>Activity level
+            <select id="nutri-activity">
+              <option value="1.2">Sedentary</option>
+              <option value="1.375">Light exercise</option>
+              <option value="1.55" selected>Moderate exercise</option>
+              <option value="1.725">Heavy exercise</option>
+              <option value="1.9">Athlete</option>
+            </select>
+          </label>
+          <label>Goal
+            <select id="nutri-goal">
+              <option value="lose">Lose fat</option>
+              <option value="maintain" selected>Maintain</option>
+              <option value="gain">Gain muscle</option>
+            </select>
+          </label>
+          <label>Calorie adjustment (optional, kcal — overrides the goal's default)
+            <input type="number" id="nutri-adjustment" placeholder="e.g. -500" />
+          </label>
+          <label>Body fat % (optional, for lean/fat mass)
+            <input type="number" step="0.1" id="nutri-bodyfat" />
+          </label>
+          <button id="nutri-calculate-btn" class="primary">Calculate</button>
+
+          <div id="nutri-results" class="hidden"></div>
+        </div>
       </div>
     </section>
 
     <!-- SETTINGS -->
     <section id="tab-settings" class="tab-panel">
+      <div class="card">
+        <h2>Appearance</h2>
+        <label>Theme</label>
+        <div class="segmented" id="theme-toggle">
+          <button type="button" class="segmented-btn" data-theme-choice="dark">Dark</button>
+          <button type="button" class="segmented-btn" data-theme-choice="light">Light</button>
+        </div>
+      </div>
       <div class="card">
         <h2>Google Calendar</h2>
         <div class="settings-row">
