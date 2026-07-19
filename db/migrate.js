@@ -112,9 +112,118 @@ function ensureExerciseMediaColumns(db) {
   }
 }
 
+// Upgrades a pre-multi-user database (single implicit owner) to the
+// multi-user schema: assigns all existing data to a user row derived from
+// OWNER_EMAIL (or the existing google_auth row's email), and rebuilds
+// settings/google_auth/plan_schedule with proper per-user keys.
+//
+// Gated on `sessions.user_id` (not on the `users` table existing) because
+// schema.sql's `CREATE TABLE IF NOT EXISTS users` always creates that table
+// on every startup, including against this old-shaped database — checking
+// for the table would make this look "already migrated" immediately and
+// skip the real work.  No-op on a genuinely fresh install, since a fresh
+// `sessions` table (from schema.sql) already has `user_id` from the start.
+function ensureMultiUserMigration(db) {
+  const sessionsColumns = db.prepare('PRAGMA table_info(sessions)').all();
+  if (sessionsColumns.some((c) => c.name === 'user_id')) return;
+
+  db.exec('BEGIN');
+  try {
+    // schema.sql already created `users` (IF NOT EXISTS) — just look up or
+    // create the owner row to assign existing data to.
+    const hadGoogleAuth = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='google_auth'").get();
+    const existingAuth = hadGoogleAuth ? db.prepare('SELECT * FROM google_auth WHERE id = 1').get() : null;
+    const ownerEmail = (process.env.OWNER_EMAIL || existingAuth?.email || '').toLowerCase() || null;
+
+    let ownerId = null;
+    if (ownerEmail) {
+      const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(ownerEmail);
+      ownerId = existingUser
+        ? existingUser.id
+        : db.prepare('INSERT INTO users (email) VALUES (?)').run(ownerEmail).lastInsertRowid;
+    }
+
+    // sessions: add user_id, backfill
+    db.exec('ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users(id)');
+    if (ownerId) db.prepare('UPDATE sessions SET user_id = ?').run(ownerId);
+
+    // body_stats: add user_id, backfill
+    db.exec('ALTER TABLE body_stats ADD COLUMN user_id INTEGER REFERENCES users(id)');
+    if (ownerId) db.prepare('UPDATE body_stats SET user_id = ?').run(ownerId);
+
+    // settings: rebuild with composite (user_id, key) primary key
+    const oldSettings = db.prepare('SELECT key, value FROM settings').all();
+    db.exec('DROP TABLE settings');
+    db.exec(`
+      CREATE TABLE settings (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        key TEXT NOT NULL,
+        value TEXT,
+        PRIMARY KEY (user_id, key)
+      )
+    `);
+    if (ownerId) {
+      const insertSetting = db.prepare('INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)');
+      for (const row of oldSettings) insertSetting.run(ownerId, row.key, row.value);
+    }
+
+    // google_auth: rebuild keyed by user_id instead of a fixed id=1 row
+    db.exec('DROP TABLE IF EXISTS google_auth');
+    db.exec(`
+      CREATE TABLE google_auth (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id),
+        email TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        access_token TEXT,
+        access_token_expiry INTEGER
+      )
+    `);
+    if (ownerId && existingAuth) {
+      db.prepare(`
+        INSERT INTO google_auth (user_id, email, refresh_token, access_token, access_token_expiry)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(ownerId, existingAuth.email, existingAuth.refresh_token, existingAuth.access_token, existingAuth.access_token_expiry);
+    }
+
+    // plan_schedule: rebuild with user_id and a per-user unique constraint
+    // (the old UNIQUE(plan_id, weekday) would otherwise block a second
+    // user from having a schedule entry on the same plan/weekday).
+    const oldSchedule = db.prepare('SELECT plan_id, weekday, template_id FROM plan_schedule').all();
+    db.exec('DROP TABLE plan_schedule');
+    db.exec(`
+      CREATE TABLE plan_schedule (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        plan_id INTEGER NOT NULL REFERENCES plans(id),
+        weekday INTEGER NOT NULL,
+        template_id INTEGER NOT NULL REFERENCES templates(id),
+        UNIQUE(user_id, plan_id, weekday)
+      )
+    `);
+    if (ownerId) {
+      const insertSched = db.prepare('INSERT INTO plan_schedule (user_id, plan_id, weekday, template_id) VALUES (?, ?, ?, ?)');
+      for (const row of oldSchedule) insertSched.run(ownerId, row.plan_id, row.weekday, row.template_id);
+    }
+
+    db.exec('COMMIT');
+    console.log(`Migrated to multi-user schema${ownerEmail ? ` (existing data assigned to ${ownerEmail})` : ' (no prior owner found)'}.`);
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
+function ensurePasswordColumn(db) {
+  const columns = db.prepare('PRAGMA table_info(users)').all();
+  if (columns.some((c) => c.name === 'password_hash')) return;
+  db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+}
+
 module.exports = {
   ensureSessionExercisesMigration,
   ensureCalendarEventIdColumn,
   ensurePlansMigration,
   ensureExerciseMediaColumns,
+  ensureMultiUserMigration,
+  ensurePasswordColumn,
 };

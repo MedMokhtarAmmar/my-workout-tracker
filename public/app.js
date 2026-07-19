@@ -96,8 +96,9 @@ function setupTabs() {
       if (btn.dataset.tab === 'plans') loadPlans();
       if (btn.dataset.tab === 'history') loadHistory();
       if (btn.dataset.tab === 'calendar') loadCalendar();
-      if (btn.dataset.tab === 'progress') loadExerciseOptions();
+      if (btn.dataset.tab === 'progress') { loadExerciseOptions(); loadProgressPhotos(); }
       if (btn.dataset.tab === 'stats') { loadBodyStats(); loadNutritionProfile(); }
+      if (btn.dataset.tab === 'profile') loadProfile();
       if (btn.dataset.tab === 'settings') loadSettings();
     });
   });
@@ -758,6 +759,97 @@ async function loadProgress(exerciseId) {
     <tbody>${tableRows}</tbody></table>`;
 }
 
+// ---------- Progress photos ----------
+
+const PHOTO_MAX_DIMENSION = 1600;
+
+// Downscales onto a canvas before upload so a multi-MB phone photo doesn't
+// balloon the request (and long-term storage) once base64-encoded.
+function resizeImageToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > PHOTO_MAX_DIMENSION || height > PHOTO_MAX_DIMENSION) {
+        const scale = PHOTO_MAX_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = reject;
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadProgressPhoto() {
+  const file = $('#photo-file').files[0];
+  const date = $('#photo-date').value || todayISO();
+  const weightInput = $('#photo-weight').value;
+
+  if (!file) return alert('Please choose a photo.');
+
+  const btn = $('#upload-photo-btn');
+  btn.disabled = true;
+  try {
+    const image = await resizeImageToDataUrl(file);
+    const res = await fetch('/api/progress-photos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, weight_kg: weightInput ? parseFloat(weightInput) : null, image }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Upload failed.');
+      return;
+    }
+    $('#photo-file').value = '';
+    $('#photo-weight').value = '';
+    await loadProgressPhotos();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadProgressPhotos() {
+  const res = await fetch('/api/progress-photos');
+  const photos = await res.json();
+
+  $('#photo-gallery').innerHTML = photos.length
+    ? photos.slice().reverse().map((p) => `
+        <div class="photo-card" data-id="${p.id}" data-date="${p.date}">
+          <img src="/api/progress-photos/${p.id}/image" alt="Progress photo from ${p.date}" loading="lazy" />
+          <button type="button" class="photo-delete-btn" title="Delete photo">✕</button>
+          <div class="photo-meta">
+            <span>${p.date}</span>
+            ${p.weight_kg != null ? `<span>${p.weight_kg} kg</span>` : ''}
+          </div>
+        </div>`).join('')
+    : '<p class="exercise-target">No progress photos yet.</p>';
+
+  $('#photo-gallery').querySelectorAll('.photo-card img').forEach((img) => {
+    img.addEventListener('click', () => {
+      const card = img.closest('.photo-card');
+      openModal('Progress photo', card.dataset.date, `<img src="${img.src}" style="width:100%; border-radius:8px; display:block;" />`);
+    });
+  });
+  $('#photo-gallery').querySelectorAll('.photo-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.photo-card');
+      if (!confirm('Delete this photo?')) return;
+      await fetch(`/api/progress-photos/${card.dataset.id}`, { method: 'DELETE' });
+      loadProgressPhotos();
+    });
+  });
+}
+
 // ---------- Body stats ----------
 
 async function saveBodyStats() {
@@ -820,27 +912,31 @@ function bmiCategory(bmi) {
 async function loadNutritionProfile() {
   const res = await fetch('/api/settings');
   const s = await res.json();
-  if (s.nutrition_age) $('#nutri-age').value = s.nutrition_age;
-  $('#nutri-sex').value = s.nutrition_sex;
-  if (s.nutrition_height_cm) $('#nutri-height').value = s.nutrition_height_cm;
-  $('#nutri-activity').value = s.nutrition_activity;
-  $('#nutri-goal').value = s.nutrition_goal;
   if (s.nutrition_calorie_adjustment) $('#nutri-adjustment').value = s.nutrition_calorie_adjustment;
-  if (s.nutrition_body_fat_pct) $('#nutri-bodyfat').value = s.nutrition_body_fat_pct;
 }
 
+// Age/sex/height/activity/goal/body-fat now live on the Profile tab (single
+// source of truth) — the calculator just reads them and asks for weight.
 async function calculateNutrition() {
-  const age = parseFloat($('#nutri-age').value);
-  const sex = $('#nutri-sex').value;
-  const weight = parseFloat($('#nutri-weight').value);
-  const height = parseFloat($('#nutri-height').value);
-  const activityMultiplier = parseFloat($('#nutri-activity').value);
-  const goal = $('#nutri-goal').value;
-  const adjustmentInput = $('#nutri-adjustment').value;
-  const bodyFatInput = $('#nutri-bodyfat').value;
+  const profileRes = await fetch('/api/settings');
+  const profile = await profileRes.json();
+  const age = parseFloat(profile.nutrition_age);
+  const sex = profile.nutrition_sex;
+  const height = parseFloat(profile.nutrition_height_cm);
+  const activityMultiplier = parseFloat(profile.nutrition_activity);
+  const goal = profile.nutrition_goal;
+  const bodyFat = profile.nutrition_body_fat_pct ? parseFloat(profile.nutrition_body_fat_pct) : null;
 
-  if (!age || !weight || !height) {
-    alert('Please fill in age, weight, and height.');
+  if (!age || !height) {
+    alert('Please fill in your fitness profile (age, height) first.');
+    $('.tab-btn[data-tab="profile"]').click();
+    return;
+  }
+
+  const weight = parseFloat($('#nutri-weight').value);
+  const adjustmentInput = $('#nutri-adjustment').value;
+  if (!weight) {
+    alert('Please fill in your weight.');
     return;
   }
 
@@ -858,8 +954,6 @@ async function calculateNutrition() {
   const fiberG = (targetCalories / 1000) * 14;
   const waterL = (weight * 40) / 1000;
   const bmi = weight / ((height / 100) ** 2);
-
-  const bodyFat = bodyFatInput !== '' ? parseFloat(bodyFatInput) : null;
 
   const rows = [
     ['BMR', `${Math.round(bmr)} kcal`],
@@ -883,30 +977,16 @@ async function calculateNutrition() {
   await fetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      nutrition_age: age,
-      nutrition_sex: sex,
-      nutrition_height_cm: height,
-      nutrition_activity: activityMultiplier,
-      nutrition_goal: goal,
-      nutrition_calorie_adjustment: adjustmentInput,
-      nutrition_body_fat_pct: bodyFatInput,
-    }),
+    body: JSON.stringify({ nutrition_calorie_adjustment: adjustmentInput }),
   });
 }
 
 // ---------- Settings ----------
 
 async function loadSettings() {
-  const [settingsRes, statusRes] = await Promise.all([
-    fetch('/api/settings'),
-    fetch('/api/auth/status'),
-  ]);
-  const settings = await settingsRes.json();
-  const status = await statusRes.json();
-
+  const res = await fetch('/api/settings');
+  const settings = await res.json();
   $('#reminder-time').value = settings.reminder_time;
-  $('#settings-email').textContent = status.email || '';
 }
 
 async function saveSettings() {
@@ -918,6 +998,57 @@ async function saveSettings() {
     body: JSON.stringify({ reminder_time, timezone }),
   });
   alert('Settings saved.');
+}
+
+// ---------- Profile ----------
+
+async function loadProfile() {
+  const [settingsRes, statusRes, statsRes] = await Promise.all([
+    fetch('/api/settings'),
+    fetch('/api/auth/status'),
+    fetch('/api/body-stats'),
+  ]);
+  const settings = await settingsRes.json();
+  const status = await statusRes.json();
+  const stats = await statsRes.json();
+
+  $('#profile-email').textContent = status.email || '';
+
+  if (settings.nutrition_age) $('#profile-age').value = settings.nutrition_age;
+  $('#profile-sex').value = settings.nutrition_sex;
+  if (settings.nutrition_height_cm) $('#profile-height').value = settings.nutrition_height_cm;
+  $('#profile-activity').value = settings.nutrition_activity;
+  $('#profile-goal').value = settings.nutrition_goal;
+  if (settings.nutrition_body_fat_pct) $('#profile-bodyfat').value = settings.nutrition_body_fat_pct;
+
+  const latest = stats.slice().reverse().find((r) => r.weight_kg != null);
+  const height = parseFloat(settings.nutrition_height_cm);
+  if (latest && height) {
+    const bmi = latest.weight_kg / ((height / 100) ** 2);
+    $('#profile-snapshot').textContent =
+      `Weight: ${latest.weight_kg} kg (logged ${latest.date}) · BMI: ${bmi.toFixed(1)} (${bmiCategory(bmi)})`;
+  } else if (latest) {
+    $('#profile-snapshot').textContent = `Weight: ${latest.weight_kg} kg (logged ${latest.date}) · add your height for BMI`;
+  } else {
+    $('#profile-snapshot').textContent = 'No body stats logged yet.';
+  }
+}
+
+async function saveProfile() {
+  await fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nutrition_age: $('#profile-age').value,
+      nutrition_sex: $('#profile-sex').value,
+      nutrition_height_cm: $('#profile-height').value,
+      nutrition_activity: $('#profile-activity').value,
+      nutrition_goal: $('#profile-goal').value,
+      nutrition_body_fat_pct: $('#profile-bodyfat').value,
+    }),
+  });
+  alert('Profile saved.');
+  loadProfile();
 }
 
 async function logout() {
@@ -947,6 +1078,7 @@ function init() {
   setupThemeToggle();
   $('#session-date').value = todayISO();
   $('#stats-date').value = todayISO();
+  $('#photo-date').value = todayISO();
   loadTemplates();
   loadWeekProgress();
   ensureTimezone();
@@ -956,7 +1088,13 @@ function init() {
   $('#finish-session-btn').addEventListener('click', finishSession);
   $('#add-exercise-btn').addEventListener('click', onAddExercise);
   $('#save-stats-btn').addEventListener('click', saveBodyStats);
+  $('#upload-photo-btn').addEventListener('click', uploadProgressPhoto);
   $('#nutri-calculate-btn').addEventListener('click', calculateNutrition);
+  $('#nutri-profile-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    $('.tab-btn[data-tab="profile"]').click();
+  });
+  $('#save-profile-btn').addEventListener('click', saveProfile);
   $('#save-settings-btn').addEventListener('click', saveSettings);
   $('#logout-btn').addEventListener('click', logout);
   $('#calendar-prev-btn').addEventListener('click', () => changeCalendarMonth(-1));

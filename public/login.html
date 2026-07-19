@@ -4,32 +4,124 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Workout Tracker — Sign in</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="icon" type="image/png" href="/logo-mark.png" />
 <script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="login-main">
     <div class="card login-card">
-      <h1><img class="brand-icon" src="/favicon.svg" alt="" /> Workout Tracker</h1>
-      <p class="exercise-target">Sign in to log workouts and sync reminders to your Google Calendar.</p>
+      <h1><img class="brand-icon" src="/logo-mark.png" alt="" /> Workout Tracker</h1>
+
+      <div class="segmented" id="auth-mode-toggle">
+        <button type="button" class="segmented-btn active" data-mode="signin">Sign In</button>
+        <button type="button" class="segmented-btn" data-mode="signup">Sign Up</button>
+      </div>
+
       <div id="login-error" class="login-error hidden"></div>
-      <a href="/auth/google" class="primary google-btn">Sign in with Google</a>
+
+      <form id="signin-form" class="auth-form">
+        <label>Email
+          <input type="email" id="signin-email" required autocomplete="email" />
+        </label>
+        <label>Password
+          <input type="password" id="signin-password" required autocomplete="current-password" />
+        </label>
+        <button type="submit" class="primary">Sign In</button>
+      </form>
+
+      <form id="signup-form" class="auth-form hidden">
+        <label>Email
+          <input type="email" id="signup-email" required autocomplete="email" />
+        </label>
+        <label>Password
+          <input type="password" id="signup-password" required autocomplete="new-password" minlength="8" />
+        </label>
+        <label>Confirm password
+          <input type="password" id="signup-confirm" required autocomplete="new-password" />
+        </label>
+        <button type="submit" class="primary">Sign Up</button>
+      </form>
+
+      <div class="auth-divider">or</div>
+
+      <a href="/auth/google" class="secondary google-btn" id="google-btn">Continue with Google</a>
     </div>
   </main>
 
   <script>
+    const GOOGLE_BTN_TEXT = { signin: 'Continue with Google', signup: 'Sign up with Google' };
+
+    function showMode(mode) {
+      document.querySelectorAll('#auth-mode-toggle .segmented-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+      document.getElementById('signin-form').classList.toggle('hidden', mode !== 'signin');
+      document.getElementById('signup-form').classList.toggle('hidden', mode !== 'signup');
+      document.getElementById('google-btn').textContent = GOOGLE_BTN_TEXT[mode];
+      hideError();
+    }
+
+    document.querySelectorAll('#auth-mode-toggle .segmented-btn').forEach((btn) => {
+      btn.addEventListener('click', () => showMode(btn.dataset.mode));
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('login-error');
+      box.textContent = msg;
+      box.classList.remove('hidden');
+    }
+    function hideError() {
+      document.getElementById('login-error').classList.add('hidden');
+    }
+
+    document.getElementById('signin-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      const email = document.getElementById('signin-email').value.trim();
+      const password = document.getElementById('signin-password').value;
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (res.ok) {
+        location.href = '/';
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showError(data.error || 'Sign-in failed. Please try again.');
+      }
+    });
+
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value;
+      const confirm = document.getElementById('signup-confirm').value;
+
+      if (password.length < 8) return showError('Password must be at least 8 characters.');
+      if (password !== confirm) return showError('Passwords do not match.');
+
+      const res = await fetch('/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (res.ok) {
+        location.href = '/';
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showError(data.error || 'Sign-up failed. Please try again.');
+      }
+    });
+
     const params = new URLSearchParams(location.search);
     const error = params.get('error');
     if (error) {
       const messages = {
-        not_authorized: "That Google account isn't authorized for this app.",
         access_denied: 'Sign-in was cancelled.',
         auth_failed: 'Sign-in failed. Please try again.',
       };
-      const box = document.getElementById('login-error');
-      box.textContent = messages[error] || 'Sign-in failed. Please try again.';
-      box.classList.remove('hidden');
+      showError(messages[error] || 'Sign-in failed. Please try again.');
     }
   </script>
 </body>

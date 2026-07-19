@@ -1,4 +1,13 @@
--- Exercises library
+-- One row per account. Created on first sign-in via Google, or on sign-up
+-- with an email/password. password_hash is NULL for Google-only accounts.
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Exercises library (shared across all users)
 CREATE TABLE IF NOT EXISTS exercises (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -8,8 +17,9 @@ CREATE TABLE IF NOT EXISTS exercises (
 );
 
 -- A followable program (e.g. "Upper/Lower 4-Day Split", "Push Pull Legs").
--- Only one plan is "active" at a time (see settings.active_plan_key) — the
--- Today tab only offers that plan's templates.
+-- Shared across all users. Only one plan is "active" per user at a time
+-- (see settings.active_plan_key) — the Today tab only offers that plan's
+-- templates.
 CREATE TABLE IF NOT EXISTS plans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   key TEXT UNIQUE NOT NULL,      -- 'upper_lower', 'ppl'
@@ -17,7 +27,7 @@ CREATE TABLE IF NOT EXISTS plans (
   description TEXT
 );
 
--- Workout day templates (Upper A, Lower A, Push, Pull, Legs, etc.)
+-- Workout day templates (Upper A, Lower A, Push, Pull, Legs, etc.). Shared.
 CREATE TABLE IF NOT EXISTS templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id INTEGER REFERENCES plans(id),
@@ -26,17 +36,20 @@ CREATE TABLE IF NOT EXISTS templates (
   focus TEXT
 );
 
--- Which weekday runs which template for a given plan. A weekday with no row
--- here is a rest day. Only the active plan's schedule drives the calendar.
+-- Which weekday runs which template for a given plan, per user (each user
+-- picks their own workout days for a shared plan). A weekday with no row
+-- here is a rest day for that user.
 CREATE TABLE IF NOT EXISTS plan_schedule (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
   plan_id INTEGER NOT NULL REFERENCES plans(id),
   weekday INTEGER NOT NULL,      -- 0 = Sunday .. 6 = Saturday
   template_id INTEGER NOT NULL REFERENCES templates(id),
-  UNIQUE(plan_id, weekday)
+  UNIQUE(user_id, plan_id, weekday)
 );
 
--- Which exercises belong to which template, in order, with target sets/reps
+-- Which exercises belong to which template, in order, with target sets/reps.
+-- Shared reference data.
 CREATE TABLE IF NOT EXISTS template_exercises (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   template_id INTEGER NOT NULL REFERENCES templates(id),
@@ -49,9 +62,10 @@ CREATE TABLE IF NOT EXISTS template_exercises (
   notes TEXT
 );
 
--- A logged workout session (one visit to the gym)
+-- A logged workout session (one visit to the gym), owned by one user.
 CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
   date TEXT NOT NULL,            -- ISO date
   template_id INTEGER REFERENCES templates(id),
   cardio_minutes INTEGER DEFAULT 0,
@@ -62,7 +76,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 -- Exercises actually done in a given session, cloned from the template when
 -- the session starts. Editing this (add/remove/replace) only affects that
--- one day — the reusable template is never touched.
+-- one day — the reusable template is never touched. Ownership follows the
+-- parent session, so no user_id column here.
 CREATE TABLE IF NOT EXISTS session_exercises (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER NOT NULL REFERENCES sessions(id),
@@ -75,7 +90,8 @@ CREATE TABLE IF NOT EXISTS session_exercises (
   notes TEXT
 );
 
--- Individual logged sets within a session
+-- Individual logged sets within a session. Ownership follows the parent
+-- session, so no user_id column here.
 CREATE TABLE IF NOT EXISTS set_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER NOT NULL REFERENCES sessions(id),
@@ -86,9 +102,10 @@ CREATE TABLE IF NOT EXISTS set_logs (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
--- Body stats tracking
+-- Body stats tracking, owned by one user.
 CREATE TABLE IF NOT EXISTS body_stats (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
   date TEXT NOT NULL,
   weight_kg REAL,
   waist_cm REAL,
@@ -96,15 +113,31 @@ CREATE TABLE IF NOT EXISTS body_stats (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
--- App-wide key/value preferences (e.g. reminder_time)
-CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
-  value TEXT
+-- Progress photos, owned by one user. The actual image bytes live on disk
+-- under data/progress-photos/<user_id>/ (outside public/, since these are
+-- personal photos) — file_name here is just that file's name, served only
+-- through the authenticated /api/progress-photos/:id/image route.
+CREATE TABLE IF NOT EXISTS progress_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  date TEXT NOT NULL,
+  weight_kg REAL,
+  file_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
--- Google OAuth tokens for the single owner account. Only ever one row.
+-- Per-user key/value preferences (e.g. reminder_time, nutrition profile).
+CREATE TABLE IF NOT EXISTS settings (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  key TEXT NOT NULL,
+  value TEXT,
+  PRIMARY KEY (user_id, key)
+);
+
+-- Google OAuth tokens, one row per user.
 CREATE TABLE IF NOT EXISTS google_auth (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
   email TEXT NOT NULL,
   refresh_token TEXT NOT NULL,
   access_token TEXT,

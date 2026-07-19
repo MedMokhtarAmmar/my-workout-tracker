@@ -26,20 +26,20 @@ All data is stored locally in `data/app.db` (a SQLite file, persisted in the `wo
 
 ## Google sign-in and Calendar reminders
 
-The app is gated behind "Sign in with Google" — only the Google account you specify as `OWNER_EMAIL` can log in. That same sign-in also connects Google Calendar: every time you start a workout, a calendar event is automatically created for that date at the reminder time set in the Settings tab (default 6:00 PM), with a 30-minute-before popup reminder. Deleting a session removes its calendar event too.
+The app is multi-user: anyone signs in (or signs up — same flow) with "Continue with Google" on the login page, and gets their own private workouts, plans, body stats, and settings. That same sign-in also connects Google Calendar: every time a user starts a workout, a calendar event is automatically created for that date at the reminder time set in their Settings tab (default 6:00 PM), with a 30-minute-before popup reminder. Deleting a session removes its calendar event too.
 
 To set this up, you need your own Google OAuth credentials (this app can't create these for you):
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/), create a project (or use an existing one).
 2. **APIs & Services > Library** — search for "Google Calendar API" and enable it.
-3. **APIs & Services > OAuth consent screen** — choose "External", fill in the required fields (app name, your email). While the app is in "Testing" mode, add your own Google account under "Test users" — otherwise Google will block sign-in.
+3. **APIs & Services > OAuth consent screen** — choose "External", fill in the required fields (app name, your email). **While the app is in "Testing" mode, only Google accounts you've explicitly added under "Test users" can sign in — this is a Google restriction, separate from the app's own logic.** To let *any* Google account sign up, you need to publish the app to "Production" (Google may require verification for sensitive scopes like Calendar access).
 4. **APIs & Services > Credentials > Create Credentials > OAuth client ID**:
    - Application type: **Web application**
    - Authorized redirect URIs: `http://localhost:3000/auth/google/callback`
 5. Copy the generated **Client ID** and **Client Secret**.
 6. Copy `.env.example` to `.env` (already done for you, with a random session secret pre-filled) and fill in:
    - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from step 5
-   - `OWNER_EMAIL` — the Google account you'll sign in with (must match the "Test user" from step 3)
+   - `OWNER_EMAIL` — only used once, to migrate any pre-existing single-user data to your account (see `.env.example`)
 7. Restart the container: `docker compose up -d --build`
 
 Then open http://localhost:3000, you'll be redirected to `/login.html`, and "Sign in with Google" will work end to end.
