@@ -40,14 +40,13 @@ require('./db/repositories/sessions').init(db);
 require('./db/repositories/exercises').init(db);
 require('./db/repositories/bodyStats').init(db);
 require('./db/repositories/progressPhotos').init(db, PHOTOS_DIR);
+require('./db/repositories/adminStats').init(db);
 
 const app = express();
 app.set('trust proxy', 1); // behind nginx in production; needed for secure cookies to work
 // Progress photos arrive as base64 JSON (see routes/progressPhotos.js) —
 // raised from the default 100kb so a resized photo fits comfortably.
 app.use(express.json({ limit: '15mb' }));
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
-app.use('/vendor/chart.js', express.static(path.join(__dirname, 'node_modules', 'chart.js', 'dist')));
 app.use(session({
   store: new SqliteSessionStore(db),
   secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
@@ -73,9 +72,19 @@ function requireAdminPage(req, res, next) {
   res.redirect('/login.html');
 }
 
+// These three page routes must be registered — and gated — before
+// express.static below. Static serving matches files by exact path
+// (including index.html and admin.html, both real files in public/), so if
+// it came first it would hand them out directly and these auth checks
+// would never run. Everything else (login.html, style.css, app.js, images)
+// has no such gated route competing for its path, so it's unaffected
+// either way and just falls through to static serving as normal.
 app.get('/', requireAuthPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/index.html', requireAuthPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/admin.html', requireAdminPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.use('/vendor/chart.js', express.static(path.join(__dirname, 'node_modules', 'chart.js', 'dist')));
 
 // Auth routes (and /api/auth/status specifically) must be registered
 // before the /api requireAuth gate below — status is the one API route
@@ -92,6 +101,7 @@ app.use('/api', require('./routes/sessions'));
 app.use('/api', require('./routes/progress'));
 app.use('/api', require('./routes/bodyStats'));
 app.use('/api', require('./routes/progressPhotos'));
+app.use('/api', requireAdmin, require('./routes/admin'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

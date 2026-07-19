@@ -31,4 +31,35 @@ function listRawExercises(templateId) {
   return db.prepare('SELECT * FROM template_exercises WHERE template_id = ? ORDER BY order_index').all(templateId);
 }
 
-module.exports = { init, listForPlanKey, findByKey, listExercisesWithDetail, listRawExercises };
+function create(planId, key, name, focus) {
+  return db.prepare('INSERT INTO templates (plan_id, key, name, focus) VALUES (?, ?, ?, ?)')
+    .run(planId, key, name, focus || null).lastInsertRowid;
+}
+
+function nextOrderIndex(templateId) {
+  return db.prepare('SELECT COALESCE(MAX(order_index), -1) AS m FROM template_exercises WHERE template_id = ?').get(templateId).m + 1;
+}
+
+function addExercise(templateId, exerciseId, orderIndex, targetSets, targetRepsLow, targetRepsHigh, restSeconds, notes) {
+  return db.prepare(`
+    INSERT INTO template_exercises
+      (template_id, exercise_id, order_index, target_sets, target_reps_low, target_reps_high, rest_seconds, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(templateId, exerciseId, orderIndex, targetSets, targetRepsLow, targetRepsHigh, restSeconds || null, notes || null).lastInsertRowid;
+}
+
+function removeExercise(templateExerciseId) {
+  db.prepare('DELETE FROM template_exercises WHERE id = ?').run(templateExerciseId);
+}
+
+module.exports = {
+  init,
+  listForPlanKey,
+  findByKey,
+  listExercisesWithDetail,
+  listRawExercises,
+  create,
+  nextOrderIndex,
+  addExercise,
+  removeExercise,
+};

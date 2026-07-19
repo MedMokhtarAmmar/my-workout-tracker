@@ -826,6 +826,69 @@ button { font-family: inherit; }
   font-weight: 600;
 }
 
+/* ---------- Admin backoffice ---------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.stat-tile {
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chip-admin {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-2);
+  border: 1px solid var(--accent-2);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.admin-template-list {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.admin-template-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.field-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.field-row-3 input { margin-top: 0; }
+
 .exercise-target {
   font-size: 12px;
   color: var(--muted);

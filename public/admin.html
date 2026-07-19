@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Workout Tracker — Admin</title>
+<link rel="icon" type="image/png" href="/logo-mark.png" />
+<script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1><img class="brand-icon" src="/logo-mark.png" alt="" /> Admin</h1>
+    <nav>
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="exercises">Exercises</button>
+      <button class="tab-btn" data-tab="plans">Plans</button>
+      <button class="tab-btn" data-tab="users">Users</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="card">
+        <h2>Overview</h2>
+        <div class="stat-grid" id="admin-stats"></div>
+      </div>
+      <div class="card">
+        <a href="/" class="secondary">← Back to the app</a>
+      </div>
+    </section>
+
+    <!-- EXERCISES -->
+    <section id="tab-exercises" class="tab-panel">
+      <div class="card">
+        <h2>Add exercise</h2>
+        <label>Name
+          <input type="text" id="ex-name" />
+        </label>
+        <label>Category
+          <select id="ex-category">
+            <option value="machine">Machine</option>
+            <option value="cable">Cable</option>
+            <option value="dumbbell">Dumbbell</option>
+            <option value="barbell">Barbell</option>
+            <option value="bodyweight">Bodyweight</option>
+          </select>
+        </label>
+        <label>Image path (optional)
+          <input type="text" id="ex-image" placeholder="/exercise-media/example.webp" />
+        </label>
+        <label>Video URL (optional)
+          <input type="text" id="ex-video" placeholder="https://youtube.com/..." />
+        </label>
+        <button id="add-exercise-btn" class="primary">Add exercise</button>
+      </div>
+      <div class="card">
+        <h2>All exercises</h2>
+        <div id="admin-exercise-list"></div>
+      </div>
+    </section>
+
+    <!-- PLANS -->
+    <section id="tab-plans" class="tab-panel">
+      <div class="card">
+        <h2>Add plan</h2>
+        <label>Key (unique, e.g. "full_body")
+          <input type="text" id="plan-key" />
+        </label>
+        <label>Name
+          <input type="text" id="plan-name" />
+        </label>
+        <label>Description (optional)
+          <input type="text" id="plan-description" />
+        </label>
+        <button id="add-plan-btn" class="primary">Add plan</button>
+      </div>
+      <div id="admin-plans-list"></div>
+    </section>
+
+    <!-- USERS -->
+    <section id="tab-users" class="tab-panel">
+      <div class="card">
+        <h2>All users</h2>
+        <div id="admin-users-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <button type="button" id="modal-close-btn" class="modal-close">✕</button>
+      <div class="session-head">
+        <h2 id="modal-title"></h2>
+        <span id="modal-date"></span>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

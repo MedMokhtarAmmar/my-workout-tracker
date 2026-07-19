@@ -19,6 +19,10 @@ function findPlanByKey(key) {
   return db.prepare('SELECT id FROM plans WHERE key = ?').get(key);
 }
 
+function createPlan(key, name, description) {
+  return db.prepare('INSERT INTO plans (key, name, description) VALUES (?, ?, ?)').run(key, name, description || null).lastInsertRowid;
+}
+
 function listTemplateSummaries(planId) {
   return db.prepare('SELECT key, name, focus FROM templates WHERE plan_id = ? ORDER BY id').all(planId);
 }
@@ -51,6 +55,7 @@ module.exports = {
   getPlanSchedule,
   listPlans,
   findPlanByKey,
+  createPlan,
   listTemplateSummaries,
   listTemplateIds,
   replaceSchedule,

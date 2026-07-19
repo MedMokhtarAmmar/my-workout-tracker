@@ -1013,6 +1013,7 @@ async function loadProfile() {
   const stats = await statsRes.json();
 
   $('#profile-email').textContent = status.email || '';
+  $('#admin-link').classList.toggle('hidden', !status.isAdmin);
 
   if (settings.nutrition_age) $('#profile-age').value = settings.nutrition_age;
   $('#profile-sex').value = settings.nutrition_sex;

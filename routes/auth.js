@@ -94,7 +94,11 @@ router.post('/logout', (req, res) => {
 // `/api` requireAuth gate since it's the one API route that works whether
 // or not you're logged in.
 function status(req, res) {
-  res.json({ loggedIn: !!req.session.loggedIn, email: req.session.email || null });
+  res.json({
+    loggedIn: !!req.session.loggedIn,
+    email: req.session.email || null,
+    isAdmin: req.session.loggedIn ? users.isAdmin(req.session.userId) : false,
+  });
 }
 
 module.exports = { router, status };
