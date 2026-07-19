@@ -6,10 +6,11 @@ const { DatabaseSync } = require('node:sqlite');
 const { seed, categorizeExercises, attachExerciseMedia } = require('./db/seed');
 const {
   ensureSessionExercisesMigration, ensureCalendarEventIdColumn, ensurePlansMigration,
-  ensureExerciseMediaColumns, ensureMultiUserMigration, ensurePasswordColumn,
+  ensureExerciseMediaColumns, ensureMultiUserMigration, ensurePasswordColumn, ensureAdminColumn,
 } = require('./db/migrate');
 const googleAuth = require('./lib/google');
 const SqliteSessionStore = require('./lib/sqlite-session-store');
+const usersRepo = require('./db/repositories/users');
 
 const DB_PATH = path.join(__dirname, 'data', 'app.db');
 const PHOTOS_DIR = path.join(__dirname, 'data', 'progress-photos');
@@ -25,12 +26,13 @@ ensurePlansMigration(db);
 ensureExerciseMediaColumns(db);
 ensureMultiUserMigration(db);
 ensurePasswordColumn(db);
+ensureAdminColumn(db);
 seed(db);
 categorizeExercises(db);
 attachExerciseMedia(db);
 
 googleAuth.init(db);
-require('./db/repositories/users').init(db);
+usersRepo.init(db);
 require('./db/repositories/settings').init(db);
 require('./db/repositories/plans').init(db);
 require('./db/repositories/templates').init(db);
@@ -62,9 +64,18 @@ function requireAuth(req, res, next) {
   if (req.session.loggedIn) return next();
   res.status(401).json({ error: 'Unauthorized' });
 }
+function requireAdmin(req, res, next) {
+  if (req.session.loggedIn && usersRepo.isAdmin(req.session.userId)) return next();
+  res.status(403).json({ error: 'Admin access required' });
+}
+function requireAdminPage(req, res, next) {
+  if (req.session.loggedIn && usersRepo.isAdmin(req.session.userId)) return next();
+  res.redirect('/login.html');
+}
 
 app.get('/', requireAuthPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/index.html', requireAuthPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/admin.html', requireAdminPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // Auth routes (and /api/auth/status specifically) must be registered
 // before the /api requireAuth gate below — status is the one API route

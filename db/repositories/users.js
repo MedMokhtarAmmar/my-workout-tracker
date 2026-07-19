@@ -21,7 +21,11 @@ function count() {
 }
 
 function list() {
-  return db.prepare('SELECT id, email, created_at FROM users ORDER BY created_at DESC').all();
+  return db.prepare('SELECT id, email, is_admin, created_at FROM users ORDER BY created_at DESC').all();
 }
 
-module.exports = { init, findByEmail, findById, createWithPassword, count, list };
+function isAdmin(userId) {
+  return !!db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId)?.is_admin;
+}
+
+module.exports = { init, findByEmail, findById, createWithPassword, count, list, isAdmin };

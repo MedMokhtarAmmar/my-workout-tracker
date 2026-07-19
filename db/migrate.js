@@ -219,6 +219,22 @@ function ensurePasswordColumn(db) {
   db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
 }
 
+// Adds the admin flag and, on first run only, grants it to OWNER_EMAIL (the
+// same account the earlier multi-user migration assigned existing data to)
+// so the backoffice has at least one admin without manual DB surgery.
+function ensureAdminColumn(db) {
+  const columns = db.prepare('PRAGMA table_info(users)').all();
+  if (columns.some((c) => c.name === 'is_admin')) return;
+
+  db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+
+  const ownerEmail = (process.env.OWNER_EMAIL || '').toLowerCase();
+  if (ownerEmail) {
+    const info = db.prepare('UPDATE users SET is_admin = 1 WHERE email = ?').run(ownerEmail);
+    if (info.changes) console.log(`Granted admin to ${ownerEmail}.`);
+  }
+}
+
 module.exports = {
   ensureSessionExercisesMigration,
   ensureCalendarEventIdColumn,
@@ -226,4 +242,5 @@ module.exports = {
   ensureExerciseMediaColumns,
   ensureMultiUserMigration,
   ensurePasswordColumn,
+  ensureAdminColumn,
 };

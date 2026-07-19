@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const googleAuth = require('../lib/google');
 const { hashPassword, verifyPassword } = require('../lib/password');
 const users = require('../db/repositories/users');
@@ -13,11 +14,22 @@ const router = express.Router();
 // anyone take over an existing Google-only account just by knowing its
 // email).
 
+// Password auth is the brute-force-able surface here (Google OAuth isn't —
+// Google handles that on their end). 20 attempts / 15 min per IP is loose
+// enough for a fumbled password, tight enough to make guessing impractical.
+const passwordAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
+});
+
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-router.post('/signup', (req, res) => {
+router.post('/signup', passwordAuthLimiter, (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
   const password = req.body.password || '';
 
@@ -36,7 +48,7 @@ router.post('/signup', (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', passwordAuthLimiter, (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
   const password = req.body.password || '';
 
