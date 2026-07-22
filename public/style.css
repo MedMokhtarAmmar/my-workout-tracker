@@ -920,6 +920,12 @@ button { font-family: inherit; }
   font-size: 13px;
 }
 
+.add-set-btn {
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
 .session-head {
   display: flex;
   justify-content: space-between;

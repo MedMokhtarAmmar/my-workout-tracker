@@ -234,6 +234,17 @@ async function loadActiveExercises() {
 }
 
 function renderExerciseList(exercises, loggedSets = {}) {
+  // A set logged beyond the template's target count (via "+ Add set")
+  // still needs a row after a reload — go by whichever is higher.
+  const maxLoggedSetByExercise = {};
+  Object.keys(loggedSets).forEach((key) => {
+    const [sessionExerciseId, setNumStr] = key.split('-');
+    const setNum = parseInt(setNumStr, 10);
+    if (!maxLoggedSetByExercise[sessionExerciseId] || setNum > maxLoggedSetByExercise[sessionExerciseId]) {
+      maxLoggedSetByExercise[sessionExerciseId] = setNum;
+    }
+  });
+
   const container = $('#exercise-list');
   container.innerHTML = exercises
     .map((ex) => {
@@ -244,7 +255,8 @@ function renderExerciseList(exercises, loggedSets = {}) {
       const previousBySet = {};
       (ex.previous?.sets || []).forEach((s) => { previousBySet[s.set_number] = s; });
 
-      const setsRows = Array.from({ length: ex.target_sets }, (_, i) => {
+      const rowCount = Math.max(ex.target_sets, maxLoggedSetByExercise[ex.session_exercise_id] || 0);
+      const setsRows = Array.from({ length: rowCount }, (_, i) => {
         const setNum = i + 1;
         const logged = loggedSets[`${ex.session_exercise_id}-${setNum}`];
         const prev = previousBySet[setNum];
@@ -292,6 +304,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
             <button type="button" class="secondary cancel-replace-btn">Cancel</button>
           </div>
           ${setsRows}
+          <button type="button" class="secondary add-set-btn">+ Add set</button>
         </div>`;
     })
     .join('');
@@ -307,6 +320,9 @@ function renderExerciseList(exercises, loggedSets = {}) {
   });
   container.querySelectorAll('.confirm-replace-btn').forEach((btn) => {
     btn.addEventListener('click', onConfirmReplace);
+  });
+  container.querySelectorAll('.add-set-btn').forEach((btn) => {
+    btn.addEventListener('click', onAddSetRow);
   });
   container.querySelectorAll('.cancel-replace-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => e.target.closest('.replace-picker').classList.add('hidden'));
@@ -362,6 +378,26 @@ async function onSetInputChange(e) {
     const { id } = await res.json();
     state.setLogIds[key] = id;
   }
+}
+
+// Appends one blank set row directly instead of re-rendering the whole
+// exercise list, so an unsaved value someone's still typing in another row
+// isn't wiped out. Set numbers are always contiguous (no way to delete a
+// single set), so "how many rows are already here" is a safe count.
+function onAddSetRow(e) {
+  const block = e.target.closest('.exercise-block');
+  const sessionExerciseId = block.dataset.sessionExerciseId;
+  const nextSetNum = block.querySelectorAll('.set-row').length + 1;
+
+  const row = document.createElement('div');
+  row.className = 'set-row';
+  row.innerHTML = `
+    <span>#${nextSetNum}</span>
+    <input type="number" step="0.5" placeholder="weight (kg)" data-se="${sessionExerciseId}" data-set="${nextSetNum}" data-field="weight" />
+    <input type="number" placeholder="reps" data-se="${sessionExerciseId}" data-set="${nextSetNum}" data-field="reps" />
+  `;
+  e.target.insertAdjacentElement('beforebegin', row);
+  row.querySelectorAll('input').forEach((input) => input.addEventListener('change', onSetInputChange));
 }
 
 async function onAddExercise() {
