@@ -98,9 +98,41 @@ async function loadExercises() {
   });
 }
 
+const EXERCISE_IMAGE_MAX_DIMENSION = 1000;
+
+// Downscales onto a canvas before upload so a multi-MB phone photo of a gym
+// machine doesn't balloon the request (and long-term storage) once
+// base64-encoded.
+function resizeImageToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > EXERCISE_IMAGE_MAX_DIMENSION || height > EXERCISE_IMAGE_MAX_DIMENSION) {
+        const scale = EXERCISE_IMAGE_MAX_DIMENSION / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = reject;
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 async function addExercise() {
   const name = $('#ex-name').value.trim();
   if (!name) return alert('Name is required.');
+
+  const file = $('#ex-image-file').files[0];
+  const image = file ? await resizeImageToDataUrl(file) : null;
 
   const res = await fetch('/api/admin/exercises', {
     method: 'POST',
@@ -108,7 +140,7 @@ async function addExercise() {
     body: JSON.stringify({
       name,
       category: $('#ex-category').value,
-      image_path: $('#ex-image').value.trim() || null,
+      image,
       video_url: $('#ex-video').value.trim() || null,
     }),
   });
@@ -118,7 +150,7 @@ async function addExercise() {
   }
 
   $('#ex-name').value = '';
-  $('#ex-image').value = '';
+  $('#ex-image-file').value = '';
   $('#ex-video').value = '';
   loadExercises();
 }

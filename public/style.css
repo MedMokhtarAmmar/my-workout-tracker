@@ -777,6 +777,10 @@ button { font-family: inherit; }
 
 .settings-row:first-child { border-top: none; }
 
+.session-progress {
+  margin: 12px 0 16px;
+}
+
 /* ---------- Weekly progress ---------- */
 
 .week-bar {

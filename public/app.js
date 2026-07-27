@@ -330,6 +330,25 @@ function renderExerciseList(exercises, loggedSets = {}) {
   container.querySelectorAll('.howto-btn').forEach((btn) => {
     btn.addEventListener('click', () => showExerciseHowTo(btn.dataset.sessionExerciseId));
   });
+
+  updateSessionProgress();
+}
+
+// Planned sets come from each exercise's template target (not the row count,
+// which can exceed it via "+ Add set"); a set counts as logged once reps are
+// filled in, since weight alone (e.g. a dropped set) doesn't confirm it was
+// completed. Reads straight from the DOM so it stays in sync with whatever's
+// currently rendered without needing a fresh fetch.
+function updateSessionProgress() {
+  const totalPlanned = state.activeExercises.reduce((sum, ex) => sum + ex.target_sets, 0);
+  const loggedCount = $$('#exercise-list .set-row').filter((row) => {
+    const reps = row.querySelector('[data-field="reps"]');
+    return reps && reps.value !== '';
+  }).length;
+  const pct = totalPlanned ? Math.min(100, Math.round((loggedCount / totalPlanned) * 100)) : 0;
+
+  $('#session-progress-fill').style.width = `${pct}%`;
+  $('#session-progress-label').textContent = `${loggedCount} of ${totalPlanned} sets logged`;
 }
 
 function youtubeEmbedUrl(url) {
@@ -362,6 +381,8 @@ async function onSetInputChange(e) {
   const repsInput = row.querySelector('[data-field="reps"]');
   const weight = weightInput.value ? parseFloat(weightInput.value) : null;
   const reps = repsInput.value ? parseInt(repsInput.value, 10) : null;
+
+  updateSessionProgress();
 
   if (state.setLogIds[key]) {
     await fetch(`/api/sets/${state.setLogIds[key]}`, {

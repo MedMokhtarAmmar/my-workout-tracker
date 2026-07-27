@@ -21,18 +21,25 @@ router.get('/admin/exercises', (req, res) => {
   res.json(exercisesRepo.listAll());
 });
 
+// image is an optional "data:image/...;base64,..." data URL from the admin
+// client's file picker; when present it's saved to disk and takes priority
+// over a hand-typed image_path.
 router.post('/admin/exercises', (req, res) => {
-  const { name, category, image_path, video_url } = req.body;
+  const { name, category, image, image_path, video_url } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required.' });
-  const id = exercisesRepo.create(name, category, image_path, video_url);
+  const savedImagePath = image ? exercisesRepo.saveImageFromDataUrl(image) : (image_path || null);
+  if (image && !savedImagePath) return res.status(400).json({ error: 'Unrecognized image type — use jpeg, png, webp, or gif.' });
+  const id = exercisesRepo.create(name, category, savedImagePath, video_url);
   res.json({ id });
 });
 
 router.put('/admin/exercises/:id', (req, res) => {
   if (!exercisesRepo.findById(req.params.id)) return res.status(404).json({ error: 'Not found' });
-  const { name, category, image_path, video_url } = req.body;
+  const { name, category, image, image_path, video_url } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required.' });
-  exercisesRepo.update(req.params.id, name, category, image_path, video_url);
+  const savedImagePath = image ? exercisesRepo.saveImageFromDataUrl(image) : (image_path || null);
+  if (image && !savedImagePath) return res.status(400).json({ error: 'Unrecognized image type — use jpeg, png, webp, or gif.' });
+  exercisesRepo.update(req.params.id, name, category, savedImagePath, video_url);
   res.json({ ok: true });
 });
 
