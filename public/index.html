@@ -114,6 +114,7 @@
     <section id="tab-progress" class="tab-panel">
       <nav class="segmented subtab-nav">
         <button type="button" class="segmented-btn active" data-subtab="exercises">Exercises</button>
+        <button type="button" class="segmented-btn" data-subtab="report">Report</button>
         <button type="button" class="segmented-btn" data-subtab="photos">Photos</button>
       </nav>
 
@@ -125,6 +126,23 @@
           </label>
           <canvas id="progress-chart" height="120"></canvas>
           <div id="progress-table"></div>
+        </div>
+      </div>
+
+      <div id="subtab-report" class="subtab-panel">
+        <div class="card">
+          <div class="calendar-nav">
+            <button type="button" id="report-prev-btn" class="secondary">‹</button>
+            <h2 id="report-range-label"></h2>
+            <button type="button" id="report-next-btn" class="secondary">›</button>
+          </div>
+          <div class="segmented" id="report-period-toggle">
+            <button type="button" class="segmented-btn active" data-period="week">Weekly</button>
+            <button type="button" class="segmented-btn" data-period="month">Monthly</button>
+          </div>
+          <div class="stat-grid" id="report-stats"></div>
+          <div id="report-exercises"></div>
+          <div id="report-sessions"></div>
         </div>
       </div>
 

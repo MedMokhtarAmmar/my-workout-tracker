@@ -99,6 +99,7 @@ app.use('/api', require('./routes/settings'));
 app.use('/api', require('./routes/plans'));
 app.use('/api', require('./routes/sessions'));
 app.use('/api', require('./routes/progress'));
+app.use('/api', require('./routes/reports'));
 app.use('/api', require('./routes/bodyStats'));
 app.use('/api', require('./routes/progressPhotos'));
 app.use('/api', requireAdmin, require('./routes/admin'));

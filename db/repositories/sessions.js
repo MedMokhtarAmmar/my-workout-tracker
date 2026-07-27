@@ -214,6 +214,42 @@ function volumeInDateRange(userId, startDate, endDate) {
   `).get(userId, startDate, endDate);
 }
 
+function cardioMinutesInDateRange(userId, startDate, endDate) {
+  return db.prepare(`
+    SELECT COALESCE(SUM(cardio_minutes), 0) AS total
+    FROM sessions
+    WHERE user_id = ? AND date BETWEEN ? AND ?
+  `).get(userId, startDate, endDate);
+}
+
+function completedSetsCountInDateRange(userId, startDate, endDate) {
+  return db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM set_logs sl
+    JOIN sessions s ON s.id = sl.session_id
+    WHERE s.user_id = ? AND s.date BETWEEN ? AND ? AND sl.reps IS NOT NULL
+  `).get(userId, startDate, endDate);
+}
+
+// Per-exercise rollup for a report: how much of each exercise was actually
+// done (completed sets only) in the range, ranked by volume so the busiest
+// lifts surface first.
+function exerciseBreakdownInDateRange(userId, startDate, endDate) {
+  return db.prepare(`
+    SELECT e.name AS exercise_name,
+           COUNT(*) AS sets,
+           COALESCE(SUM(sl.reps * sl.weight_kg), 0) AS volume,
+           MAX(sl.weight_kg) AS max_weight
+    FROM set_logs sl
+    JOIN session_exercises se ON se.id = sl.session_exercise_id
+    JOIN sessions s ON s.id = sl.session_id
+    JOIN exercises e ON e.id = se.exercise_id
+    WHERE s.user_id = ? AND s.date BETWEEN ? AND ? AND sl.reps IS NOT NULL
+    GROUP BY e.id
+    ORDER BY volume DESC
+  `).all(userId, startDate, endDate);
+}
+
 function inMonth(userId, monthPrefix) {
   return db.prepare(`
     SELECT s.id, s.date, t.name AS template_name
@@ -249,5 +285,8 @@ module.exports = {
   progressForExercise,
   inDateRange,
   volumeInDateRange,
+  cardioMinutesInDateRange,
+  completedSetsCountInDateRange,
+  exerciseBreakdownInDateRange,
   inMonth,
 };

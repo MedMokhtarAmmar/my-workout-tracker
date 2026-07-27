@@ -16,6 +16,8 @@ const state = {
   weightChart: null,
   calendarYear: new Date().getFullYear(),
   calendarMonth: new Date().getMonth() + 1, // 1-12
+  reportPeriod: 'week',  // 'week' | 'month'
+  reportDate: null,      // any date within the currently viewed period; set to today on first load
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -119,6 +121,7 @@ function setupSubTabs() {
         // Chart.js can't size a canvas correctly while its container is
         // display:none, so nudge it once it's actually visible.
         if (btn.dataset.subtab === 'weight' && state.weightChart) state.weightChart.resize();
+        if (btn.dataset.subtab === 'report') loadReport();
       });
     });
   });
@@ -816,6 +819,68 @@ async function loadProgress(exerciseId) {
     <tbody>${tableRows}</tbody></table>`;
 }
 
+// ---------- Report ----------
+
+async function loadReport() {
+  if (!state.reportDate) state.reportDate = todayISO();
+  const res = await fetch(`/api/reports?period=${state.reportPeriod}&date=${state.reportDate}`);
+  const data = await res.json();
+  renderReport(data);
+}
+
+function renderReport(data) {
+  const rangeLabel = data.period === 'week'
+    ? `${data.start} – ${data.end}`
+    : `${MONTH_NAMES[parseInt(data.start.slice(5, 7), 10) - 1]} ${data.start.slice(0, 4)}`;
+  $('#report-range-label').textContent = rangeLabel;
+
+  const tiles = [
+    ['Workouts', data.sessionsPlanned != null ? `${data.sessionsCompleted} / ${data.sessionsPlanned}` : data.sessionsCompleted],
+    ['Sets logged', data.totalSets],
+    ['Volume lifted', `${data.totalVolumeKg} kg`],
+    ['Cardio', `${data.cardioMinutes} min`],
+  ];
+  if (data.weightChangeKg != null) {
+    const sign = data.weightChangeKg > 0 ? '+' : '';
+    tiles.push(['Weight change', `${sign}${data.weightChangeKg} kg`]);
+  }
+  $('#report-stats').innerHTML = tiles.map(([label, value]) => `
+    <div class="stat-tile">
+      <span class="stat-value">${value}</span>
+      <span class="stat-label">${label}</span>
+    </div>`).join('');
+
+  $('#report-exercises').innerHTML = data.exercises.length ? `
+    <h3>Exercises trained</h3>
+    <table>
+      <thead><tr><th>Exercise</th><th>Sets</th><th>Volume</th><th>Top set</th></tr></thead>
+      <tbody>${data.exercises.map((e) => `
+        <tr>
+          <td>${e.name}</td>
+          <td>${e.sets}</td>
+          <td>${e.volumeKg} kg</td>
+          <td>${e.maxWeightKg != null ? `${e.maxWeightKg} kg` : '-'}</td>
+        </tr>`).join('')}</tbody>
+    </table>` : '<p class="exercise-target">No sets logged in this period.</p>';
+
+  $('#report-sessions').innerHTML = data.sessions.length ? `
+    <h3>Workouts</h3>
+    <ul class="report-session-list">
+      ${data.sessions.map((s) => `<li>${s.date} — ${s.template_name || 'Cardio day'}</li>`).join('')}
+    </ul>` : '';
+}
+
+function shiftReportRange(direction) {
+  const d = new Date(`${state.reportDate}T00:00:00`);
+  if (state.reportPeriod === 'week') {
+    d.setDate(d.getDate() + direction * 7);
+  } else {
+    d.setMonth(d.getMonth() + direction);
+  }
+  state.reportDate = d.toISOString().slice(0, 10);
+  loadReport();
+}
+
 // ---------- Progress photos ----------
 
 const PHOTO_MAX_DIMENSION = 1600;
@@ -1157,6 +1222,15 @@ function init() {
   $('#logout-btn').addEventListener('click', logout);
   $('#calendar-prev-btn').addEventListener('click', () => changeCalendarMonth(-1));
   $('#calendar-next-btn').addEventListener('click', () => changeCalendarMonth(1));
+  $('#report-prev-btn').addEventListener('click', () => shiftReportRange(-1));
+  $('#report-next-btn').addEventListener('click', () => shiftReportRange(1));
+  $$('#report-period-toggle .segmented-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.reportPeriod = btn.dataset.period;
+      $$('#report-period-toggle .segmented-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      loadReport();
+    });
+  });
   $('#modal-close-btn').addEventListener('click', closeModal);
   $('#modal-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'modal-overlay') closeModal();
