@@ -1,6 +1,22 @@
 let db;
 function init(database) { db = database; }
 
+// All-time best weight per exercise for this user, keyed by exercise_id —
+// used to detect a new PR the moment a set is logged, without a query per set.
+function prWeightsByExercise(userId) {
+  const rows = db.prepare(`
+    SELECT se.exercise_id, MAX(sl.weight_kg) AS max_weight
+    FROM set_logs sl
+    JOIN session_exercises se ON se.id = sl.session_exercise_id
+    JOIN sessions s ON s.id = sl.session_id
+    WHERE s.user_id = ? AND sl.weight_kg IS NOT NULL AND sl.reps IS NOT NULL
+    GROUP BY se.exercise_id
+  `).all(userId);
+  const map = {};
+  rows.forEach((r) => { map[r.exercise_id] = r.max_weight; });
+  return map;
+}
+
 function findForDate(userId, date) {
   return db.prepare(`
     SELECT s.*, t.name AS template_name, t.key AS template_key, t.focus AS template_focus
@@ -262,6 +278,7 @@ function inMonth(userId, monthPrefix) {
 
 module.exports = {
   init,
+  prWeightsByExercise,
   findForDate,
   create,
   cloneTemplateExercisesInto,

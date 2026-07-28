@@ -59,8 +59,10 @@ router.get('/sessions/:id/exercises', (req, res) => {
   if (!sessionsRepo.findOwned(uid, req.params.id)) return res.status(404).json({ error: 'Session not found' });
 
   const exercises = sessionsRepo.listExercises(req.params.id);
+  const prWeights = sessionsRepo.prWeightsByExercise(uid);
   for (const ex of exercises) {
     ex.previous = sessionsRepo.getPreviousSets(uid, ex.exercise_id, req.params.id);
+    ex.pr_weight_kg = prWeights[ex.exercise_id] ?? null;
   }
   res.json(exercises);
 });

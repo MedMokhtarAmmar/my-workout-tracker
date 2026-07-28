@@ -11,6 +11,7 @@ const state = {
   activeSessionId: null,
   activeExercises: [],   // session_exercises for the current session
   setLogIds: {},         // key `${sessionExerciseId}-${setNum}` -> set_log id
+  prByExercise: {},      // exercise_id -> best weight_kg ever logged, kept in sync as new sets are saved
   exerciseLibrary: [],   // all exercises, for the add/replace pickers
   addExerciseSelect: null, // icon-select instance for "Add an exercise" (see icon-select.js)
   exerciseSelect: null,    // icon-select instance for the Progress-tab exercise picker
@@ -223,6 +224,9 @@ async function loadActiveExercises() {
 
   state.activeExercises = exercises;
   state.setLogIds = {};
+  state.prByExercise = {};
+  exercises.forEach((ex) => { state.prByExercise[ex.exercise_id] = ex.pr_weight_kg; });
+  stopRestTimer();
   const loggedSets = {};
   session.sets.forEach((s) => {
     const key = `${s.session_exercise_id}-${s.set_number}`;
@@ -262,6 +266,11 @@ function renderExerciseList(exercises, loggedSets = {}) {
         const prev = previousBySet[setNum];
         const weightPlaceholder = prev?.weight_kg != null ? `last ${prev.weight_kg}kg` : 'weight (kg)';
         const repsPlaceholder = prev?.reps != null ? `last ${prev.reps} reps` : `reps (target ${repsLabel})`;
+        const sameAsLastBtn = prev && (prev.weight_kg != null || prev.reps != null)
+          ? `<button type="button" class="icon-btn same-as-last-btn" title="Same as last time"
+              data-se="${ex.session_exercise_id}" data-set="${setNum}"
+              data-weight="${prev.weight_kg ?? ''}" data-reps="${prev.reps ?? ''}">↺</button>`
+          : '<span></span>';
         return `
           <div class="set-row">
             <span>#${setNum}</span>
@@ -269,6 +278,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
               data-se="${ex.session_exercise_id}" data-set="${setNum}" data-field="weight" />
             <input type="number" placeholder="${repsPlaceholder}" value="${logged?.reps ?? ''}"
               data-se="${ex.session_exercise_id}" data-set="${setNum}" data-field="reps" />
+            ${sameAsLastBtn}
           </div>`;
       }).join('');
 
@@ -330,6 +340,9 @@ function renderExerciseList(exercises, loggedSets = {}) {
   container.querySelectorAll('.howto-btn').forEach((btn) => {
     btn.addEventListener('click', () => showExerciseHowTo(btn.dataset.sessionExerciseId));
   });
+  container.querySelectorAll('.same-as-last-btn').forEach((btn) => {
+    btn.addEventListener('click', onSameAsLastClick);
+  });
 
   updateSessionProgress();
 }
@@ -370,21 +383,15 @@ function showExerciseHowTo(sessionExerciseId) {
   openModal(ex.exercise_name, '', body);
 }
 
-async function onSetInputChange(e) {
-  const input = e.target;
-  const se = input.dataset.se;
-  const setNum = input.dataset.set;
-  const key = `${se}-${setNum}`;
+// Shared by typing into a row and the "same as last time" quick-fill button.
+// PR/rest-timer only fire for a brand-new set (not an edit to one already
+// saved) and only once it's actually got both numbers — a half-filled row
+// shouldn't start the clock or claim a record.
+async function saveSet(sessionExerciseId, setNum, weight, reps) {
+  const key = `${sessionExerciseId}-${setNum}`;
+  const isNewSet = !state.setLogIds[key];
 
-  const row = input.closest('.set-row');
-  const weightInput = row.querySelector('[data-field="weight"]');
-  const repsInput = row.querySelector('[data-field="reps"]');
-  const weight = weightInput.value ? parseFloat(weightInput.value) : null;
-  const reps = repsInput.value ? parseInt(repsInput.value, 10) : null;
-
-  updateSessionProgress();
-
-  if (state.setLogIds[key]) {
+  if (!isNewSet) {
     await fetch(`/api/sets/${state.setLogIds[key]}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -394,11 +401,126 @@ async function onSetInputChange(e) {
     const res = await fetch(`/api/sessions/${state.activeSessionId}/sets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_exercise_id: se, set_number: setNum, reps, weight_kg: weight }),
+      body: JSON.stringify({ session_exercise_id: sessionExerciseId, set_number: setNum, reps, weight_kg: weight }),
     });
     const { id } = await res.json();
     state.setLogIds[key] = id;
   }
+
+  if (isNewSet && weight != null && reps != null) {
+    checkForPR(sessionExerciseId, weight);
+    const ex = state.activeExercises.find((x) => String(x.session_exercise_id) === String(sessionExerciseId));
+    if (ex?.rest_seconds) startRestTimer(ex.rest_seconds);
+  }
+}
+
+async function onSetInputChange(e) {
+  const input = e.target;
+  const se = input.dataset.se;
+  const setNum = input.dataset.set;
+
+  const row = input.closest('.set-row');
+  const weightInput = row.querySelector('[data-field="weight"]');
+  const repsInput = row.querySelector('[data-field="reps"]');
+  const weight = weightInput.value ? parseFloat(weightInput.value) : null;
+  const reps = repsInput.value ? parseInt(repsInput.value, 10) : null;
+
+  updateSessionProgress();
+  await saveSet(se, setNum, weight, reps);
+}
+
+// Fills a row with the same weight/reps logged for this set last time and
+// saves it immediately, so hitting the same numbers again is one tap.
+function onSameAsLastClick(e) {
+  const btn = e.target.closest('.same-as-last-btn');
+  const row = btn.closest('.set-row');
+  const weight = btn.dataset.weight === '' ? null : parseFloat(btn.dataset.weight);
+  const reps = btn.dataset.reps === '' ? null : parseInt(btn.dataset.reps, 10);
+
+  row.querySelector('[data-field="weight"]').value = weight ?? '';
+  row.querySelector('[data-field="reps"]').value = reps ?? '';
+
+  updateSessionProgress();
+  saveSet(btn.dataset.se, btn.dataset.set, weight, reps);
+}
+
+// ---------- Personal records ----------
+
+function checkForPR(sessionExerciseId, weight) {
+  const ex = state.activeExercises.find((x) => String(x.session_exercise_id) === String(sessionExerciseId));
+  if (!ex) return;
+  const previousBest = state.prByExercise[ex.exercise_id];
+  if (previousBest == null || weight > previousBest) {
+    state.prByExercise[ex.exercise_id] = weight;
+    // Only celebrate beating a real previous best — logging an exercise for
+    // the first time ever isn't a "record" so much as a starting point.
+    if (previousBest != null) showToast(`🏆 New PR — ${ex.exercise_name}: ${weight}kg`);
+  }
+}
+
+// ---------- Toasts ----------
+
+let toastTimeout = null;
+function showToast(message) {
+  const el = $('#toast');
+  el.textContent = message;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+// ---------- Rest timer ----------
+
+let restTimerInterval = null;
+
+function startRestTimer(seconds) {
+  clearInterval(restTimerInterval);
+  const endsAt = Date.now() + seconds * 1000;
+  const el = $('#rest-timer');
+  const label = $('#rest-timer-label');
+  el.classList.remove('hidden');
+
+  function tick() {
+    const remaining = Math.round((endsAt - Date.now()) / 1000);
+    if (remaining <= 0) {
+      clearInterval(restTimerInterval);
+      el.classList.add('hidden');
+      playRestTimerAlert();
+      return;
+    }
+    const mm = Math.floor(remaining / 60);
+    const ss = String(remaining % 60).padStart(2, '0');
+    label.textContent = `Rest ${mm}:${ss}`;
+  }
+  tick();
+  restTimerInterval = setInterval(tick, 250);
+}
+
+function stopRestTimer() {
+  clearInterval(restTimerInterval);
+  $('#rest-timer')?.classList.add('hidden');
+}
+
+// A short beep via Web Audio (no asset file needed) plus a vibration on
+// devices that support it, so you notice rest is over without staring at
+// the screen the whole time.
+function playRestTimerAlert() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch {
+    // Audio isn't available in every context (e.g. no user gesture yet) —
+    // the visual bar hiding is enough of a signal on its own.
+  }
+  if (navigator.vibrate) navigator.vibrate(200);
 }
 
 // Appends one blank set row directly instead of re-rendering the whole
@@ -416,6 +538,7 @@ function onAddSetRow(e) {
     <span>#${nextSetNum}</span>
     <input type="number" step="0.5" placeholder="weight (kg)" data-se="${sessionExerciseId}" data-set="${nextSetNum}" data-field="weight" />
     <input type="number" placeholder="reps" data-se="${sessionExerciseId}" data-set="${nextSetNum}" data-field="reps" />
+    <span></span>
   `;
   e.target.insertAdjacentElement('beforebegin', row);
   row.querySelectorAll('input').forEach((input) => input.addEventListener('change', onSetInputChange));
@@ -474,6 +597,7 @@ async function finishSession() {
     body: JSON.stringify({ cardio_minutes: cardio }),
   });
 
+  stopRestTimer();
   state.activeSessionId = null;
   $('#active-session').classList.add('hidden');
   $('#today-setup').classList.remove('hidden');
@@ -1218,6 +1342,7 @@ function init() {
 
   $('#start-session-btn').addEventListener('click', startSession);
   $('#finish-session-btn').addEventListener('click', finishSession);
+  $('#rest-timer-skip').addEventListener('click', stopRestTimer);
   $('#add-exercise-btn').addEventListener('click', onAddExercise);
   $('#save-stats-btn').addEventListener('click', saveBodyStats);
   $('#upload-photo-btn').addEventListener('click', uploadProgressPhoto);

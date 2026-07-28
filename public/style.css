@@ -951,6 +951,53 @@ button { font-family: inherit; }
   font-weight: 600;
 }
 
+/* ---------- Toasts & rest timer ---------- */
+
+.toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #5b96ff, var(--accent));
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  animation: fade-in 0.2s var(--ease);
+}
+
+.toast.hidden { display: none; }
+
+.rest-timer {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 8px 8px 20px;
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  animation: fade-in 0.2s var(--ease);
+}
+
+.rest-timer.hidden { display: none; }
+
+#rest-timer-label {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  min-width: 60px;
+}
+
 /* ---------- Reports ---------- */
 
 #report-period-toggle {
@@ -1061,11 +1108,13 @@ button { font-family: inherit; }
 
 .set-row {
   display: grid;
-  grid-template-columns: 28px 1fr 1fr;
+  grid-template-columns: 28px 1fr 1fr 28px;
   gap: 8px;
   align-items: center;
   margin-bottom: 6px;
 }
+
+.same-as-last-btn { font-size: 14px; }
 
 .set-row span {
   color: var(--muted);
@@ -1142,7 +1191,7 @@ th { color: var(--muted); font-weight: 500; }
   .add-exercise-row { flex-direction: column; align-items: stretch; }
   .add-exercise-row button { width: 100%; }
 
-  .set-row { grid-template-columns: 22px 1fr 1fr; gap: 6px; }
+  .set-row { grid-template-columns: 22px 1fr 1fr 24px; gap: 6px; }
 
   .login-main { padding: 48px 16px; }
 }
