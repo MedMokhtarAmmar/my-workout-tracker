@@ -8,6 +8,7 @@
 <script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
 <link rel="stylesheet" href="style.css" />
 <script src="/vendor/chart.js/chart.umd.min.js"></script>
+<script src="icon-select.js"></script>
 </head>
 <body>
   <header>
@@ -61,7 +62,7 @@
 
         <div class="card subtle add-exercise-row">
           <label>Add an exercise to today's plan
-            <select id="add-exercise-select"></select>
+            <div id="add-exercise-select"></div>
           </label>
           <button id="add-exercise-btn" class="secondary">+ Add exercise</button>
         </div>
@@ -122,7 +123,7 @@
         <div class="card">
           <h2>Progress by exercise</h2>
           <label>Exercise
-            <select id="exercise-select"></select>
+            <div id="exercise-select"></div>
           </label>
           <canvas id="progress-chart" height="120"></canvas>
           <div id="progress-table"></div>

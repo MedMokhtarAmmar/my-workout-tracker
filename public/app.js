@@ -12,6 +12,8 @@ const state = {
   activeExercises: [],   // session_exercises for the current session
   setLogIds: {},         // key `${sessionExerciseId}-${setNum}` -> set_log id
   exerciseLibrary: [],   // all exercises, for the add/replace pickers
+  addExerciseSelect: null, // icon-select instance for "Add an exercise" (see icon-select.js)
+  exerciseSelect: null,    // icon-select instance for the Progress-tab exercise picker
   progressChart: null,
   weightChart: null,
   calendarYear: new Date().getFullYear(),
@@ -22,14 +24,6 @@ const state = {
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
-const EQUIPMENT_ICONS = {
-  machine: '/icons/machine.svg',
-  cable: '/icons/cable.svg',
-  dumbbell: '/icons/dumbbell.svg',
-  barbell: '/icons/barbell.svg',
-  bodyweight: '/icons/bodyweight.svg',
-};
 
 // Shared Chart.js styling so the two line charts (progress-by-exercise and
 // weight-over-time) match the app's dark theme instead of Chart.js defaults.
@@ -139,7 +133,7 @@ function applyTheme(theme) {
   // currently visible to reflect the new theme immediately.
   if ($('#tab-stats').classList.contains('active')) loadBodyStats();
   if ($('#tab-progress').classList.contains('active')) {
-    const exerciseId = $('#exercise-select').value;
+    const exerciseId = state.exerciseSelect?.getValue();
     if (exerciseId) loadProgress(exerciseId);
   }
 }
@@ -211,9 +205,12 @@ async function resumeTodaySessionIfAny() {
 async function loadExerciseLibrary() {
   const res = await fetch('/api/exercises');
   state.exerciseLibrary = await res.json();
-  $('#add-exercise-select').innerHTML = state.exerciseLibrary
-    .map((ex) => `<option value="${ex.id}">${ex.name}</option>`)
-    .join('');
+  const items = state.exerciseLibrary.map((ex) => ({ value: ex.id, label: ex.name, icon: iconForExercise(ex) }));
+  if (state.addExerciseSelect) {
+    state.addExerciseSelect.setItems(items);
+  } else {
+    state.addExerciseSelect = createIconSelect($('#add-exercise-select'), { items, placeholder: 'Choose an exercise' });
+  }
 }
 
 async function loadActiveExercises() {
@@ -281,7 +278,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
             .join(' · ')}</div>`
         : '';
 
-      const iconSrc = EQUIPMENT_ICONS[ex.exercise_category] || EQUIPMENT_ICONS.bodyweight;
+      const iconSrc = ex.exercise_image || EQUIPMENT_ICONS[ex.exercise_category] || EQUIPMENT_ICONS.bodyweight;
 
       return `
         <div class="exercise-block" data-session-exercise-id="${ex.session_exercise_id}">
@@ -302,7 +299,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
             </div>
           </div>
           <div class="replace-picker hidden">
-            <select class="replace-select"></select>
+            <div class="replace-select"></div>
             <button type="button" class="secondary confirm-replace-btn">Confirm</button>
             <button type="button" class="secondary cancel-replace-btn">Cancel</button>
           </div>
@@ -425,7 +422,7 @@ function onAddSetRow(e) {
 }
 
 async function onAddExercise() {
-  const exerciseId = $('#add-exercise-select').value;
+  const exerciseId = state.addExerciseSelect?.getValue();
   if (!exerciseId) return;
   await fetch(`/api/sessions/${state.activeSessionId}/exercises`, {
     method: 'POST',
@@ -447,15 +444,20 @@ function onToggleReplacePicker(e) {
   const picker = block.querySelector('.replace-picker');
   picker.classList.toggle('hidden');
   if (!picker.classList.contains('hidden')) {
-    picker.querySelector('.replace-select').innerHTML = state.exerciseLibrary
-      .map((ex) => `<option value="${ex.id}">${ex.name}</option>`)
-      .join('');
+    const mount = picker.querySelector('.replace-select');
+    // Stashed on the mount element itself since there's no longer a native
+    // <select> to read .value from directly.
+    mount._iconSelect = createIconSelect(mount, {
+      items: state.exerciseLibrary.map((ex) => ({ value: ex.id, label: ex.name, icon: iconForExercise(ex) })),
+      placeholder: 'Choose a replacement',
+    });
   }
 }
 
 async function onConfirmReplace(e) {
   const block = e.target.closest('.exercise-block');
-  const exerciseId = block.querySelector('.replace-select').value;
+  const exerciseId = block.querySelector('.replace-select')._iconSelect?.getValue();
+  if (!exerciseId) return;
   await fetch(`/api/session-exercises/${block.dataset.sessionExerciseId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -783,12 +785,19 @@ function changeCalendarMonth(delta) {
 async function loadExerciseOptions() {
   const res = await fetch('/api/exercises');
   const exercises = await res.json();
-  const select = $('#exercise-select');
-  const prev = select.value;
-  select.innerHTML = exercises.map((e) => `<option value="${e.id}">${e.name}</option>`).join('');
-  if (prev) select.value = prev;
-  select.onchange = () => loadProgress(select.value);
-  if (exercises.length) loadProgress(select.value);
+  const items = exercises.map((e) => ({ value: e.id, label: e.name, icon: iconForExercise(e) }));
+
+  const prev = state.exerciseSelect?.getValue();
+  const value = (prev && items.some((i) => String(i.value) === String(prev))) ? prev : items[0]?.value;
+
+  if (state.exerciseSelect) {
+    state.exerciseSelect.setItems(items, value);
+  } else {
+    state.exerciseSelect = createIconSelect($('#exercise-select'), {
+      items, value, placeholder: 'Choose an exercise', onChange: (id) => loadProgress(id),
+    });
+  }
+  if (items.length) loadProgress(value);
 }
 
 async function loadProgress(exerciseId) {

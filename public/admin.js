@@ -12,6 +12,8 @@ window.fetch = async (...args) => {
   return res;
 };
 
+let tplExerciseSelect = null; // icon-select instance for the "Add exercise" picker in the template manager modal
+
 // ---------- Modal ----------
 
 function openModal(title, dateStr, bodyHtml) {
@@ -264,7 +266,7 @@ async function showTemplateManager(templateKey) {
     <div class="card subtle" style="margin-top: 12px;">
       <h3>Add exercise</h3>
       <label>Exercise
-        <select id="tpl-ex-select">${exerciseLibrary.map((e) => `<option value="${e.id}">${e.name}</option>`).join('')}</select>
+        <div id="tpl-ex-select"></div>
       </label>
       <div class="field-row-3">
         <input type="number" id="tpl-ex-sets" placeholder="Sets" value="3" />
@@ -276,12 +278,17 @@ async function showTemplateManager(templateKey) {
   `;
   openModal(template.name, template.key, body);
 
+  tplExerciseSelect = createIconSelect($('#tpl-ex-select'), {
+    items: exerciseLibrary.map((e) => ({ value: e.id, label: e.name, icon: iconForExercise(e) })),
+    placeholder: 'Choose an exercise',
+  });
+
   $('#add-template-exercise-btn').addEventListener('click', async () => {
     const res = await fetch(`/api/admin/templates/${templateKey}/exercises`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        exercise_id: $('#tpl-ex-select').value,
+        exercise_id: tplExerciseSelect?.getValue(),
         target_sets: parseInt($('#tpl-ex-sets').value, 10),
         target_reps_low: parseInt($('#tpl-ex-reps-low').value, 10),
         target_reps_high: parseInt($('#tpl-ex-reps-high').value, 10),
