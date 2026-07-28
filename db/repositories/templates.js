@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 let db;
 function init(database) { db = database; }
 
@@ -36,6 +38,40 @@ function create(planId, key, name, focus) {
     .run(planId, key, name, focus || null).lastInsertRowid;
 }
 
+// ---------- User-owned custom templates ----------
+// Same tables as the shared library (plan_id NULL, user_id set instead), so
+// starting a session from one works for free — POST /sessions already just
+// looks a template up by key regardless of who owns it.
+
+function listForUser(userId) {
+  return db.prepare('SELECT * FROM templates WHERE user_id = ? ORDER BY id DESC').all(userId);
+}
+
+function findOwnedById(userId, templateId) {
+  return db.prepare('SELECT * FROM templates WHERE id = ? AND user_id = ?').get(templateId, userId);
+}
+
+function findOwnedTemplateExercise(userId, templateExerciseId) {
+  return db.prepare(`
+    SELECT te.* FROM template_exercises te
+    JOIN templates t ON t.id = te.template_id
+    WHERE te.id = ? AND t.user_id = ?
+  `).get(templateExerciseId, userId);
+}
+
+// Key is random rather than derived from the name so two users (or two of
+// this user's own templates) can never collide on the table's UNIQUE key.
+function createCustom(userId, name, focus) {
+  const key = `custom_${crypto.randomUUID()}`;
+  return db.prepare('INSERT INTO templates (plan_id, user_id, key, name, focus) VALUES (NULL, ?, ?, ?, ?)')
+    .run(userId, key, name, focus || null).lastInsertRowid;
+}
+
+function removeCustom(templateId) {
+  db.prepare('DELETE FROM template_exercises WHERE template_id = ?').run(templateId);
+  db.prepare('DELETE FROM templates WHERE id = ?').run(templateId);
+}
+
 function nextOrderIndex(templateId) {
   return db.prepare('SELECT COALESCE(MAX(order_index), -1) AS m FROM template_exercises WHERE template_id = ?').get(templateId).m + 1;
 }
@@ -62,4 +98,9 @@ module.exports = {
   nextOrderIndex,
   addExercise,
   removeExercise,
+  listForUser,
+  findOwnedById,
+  findOwnedTemplateExercise,
+  createCustom,
+  removeCustom,
 };

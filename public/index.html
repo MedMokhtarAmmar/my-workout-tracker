@@ -79,6 +79,21 @@
 
     <!-- PLANS -->
     <section id="tab-plans" class="tab-panel">
+      <div class="card">
+        <h2>My Templates</h2>
+        <p class="exercise-target">Build your own workout, separate from the shared plans below. Available any time from the Today tab's workout picker.</p>
+        <div id="my-templates-list"></div>
+        <div class="card subtle" style="margin-top: 12px;">
+          <h3>New template</h3>
+          <label>Name
+            <input type="text" id="my-template-name" placeholder="e.g. Push Day" />
+          </label>
+          <label>Focus (optional)
+            <input type="text" id="my-template-focus" placeholder="e.g. Chest & Triceps" />
+          </label>
+          <button type="button" id="add-my-template-btn" class="primary">Create template</button>
+        </div>
+      </div>
       <div id="plans-list"></div>
     </section>
 

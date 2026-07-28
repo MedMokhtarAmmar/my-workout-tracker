@@ -64,13 +64,22 @@ function createIconSelect(root, { items = [], value = '', placeholder = 'Selectâ
     document.removeEventListener('click', onOutsideClick, true);
   }
 
-  function renderPanel() {
-    panel.innerHTML = currentItems.map((i) => `
-      <button type="button" class="icon-select-option${String(i.value) === String(currentValue) ? ' selected' : ''}" data-value="${i.value}">
-        <img src="${i.icon}" alt="" />
-        <span>${i.label}</span>
-      </button>`).join('');
-    panel.querySelectorAll('.icon-select-option').forEach((opt) => {
+  // Search box lives above a separately-scrolling options list, so typing
+  // never scrolls the box itself out of view â€” only the exercise library is
+  // expected to grow long enough to need this.
+  function renderOptions(container, filterText) {
+    const q = filterText.trim().toLowerCase();
+    const filtered = q ? currentItems.filter((i) => i.label.toLowerCase().includes(q)) : currentItems;
+
+    container.innerHTML = filtered.length
+      ? filtered.map((i) => `
+        <button type="button" class="icon-select-option${String(i.value) === String(currentValue) ? ' selected' : ''}" data-value="${i.value}">
+          <img src="${i.icon}" alt="" />
+          <span>${i.label}</span>
+        </button>`).join('')
+      : '<div class="icon-select-empty">No matches</div>';
+
+    container.querySelectorAll('.icon-select-option').forEach((opt) => {
       opt.addEventListener('click', () => {
         currentValue = opt.dataset.value;
         renderButton();
@@ -80,11 +89,23 @@ function createIconSelect(root, { items = [], value = '', placeholder = 'Selectâ
     });
   }
 
+  function renderPanel() {
+    panel.innerHTML = `
+      <input type="text" class="icon-select-search" placeholder="Searchâ€¦" autocomplete="off" />
+      <div class="icon-select-options"></div>
+    `;
+    const searchInput = panel.querySelector('.icon-select-search');
+    const optionsEl = panel.querySelector('.icon-select-options');
+    searchInput.addEventListener('input', () => renderOptions(optionsEl, searchInput.value));
+    renderOptions(optionsEl, '');
+  }
+
   btn.addEventListener('click', () => {
     if (panel.classList.contains('hidden')) {
       renderPanel();
       panel.classList.remove('hidden');
       document.addEventListener('click', onOutsideClick, true);
+      panel.querySelector('.icon-select-search').focus();
     } else {
       closePanel();
     }

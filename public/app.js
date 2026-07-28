@@ -90,7 +90,7 @@ function setupTabs() {
       $$('.tab-panel').forEach((p) => p.classList.remove('active'));
       btn.classList.add('active');
       $(`#tab-${btn.dataset.tab}`).classList.add('active');
-      if (btn.dataset.tab === 'plans') loadPlans();
+      if (btn.dataset.tab === 'plans') { loadPlans(); loadMyTemplates(); }
       if (btn.dataset.tab === 'history') loadHistory();
       if (btn.dataset.tab === 'calendar') loadCalendar();
       if (btn.dataset.tab === 'progress') { loadExerciseOptions(); loadProgressPhotos(); }
@@ -150,17 +150,26 @@ function setupThemeToggle() {
 // ---------- Today / active workout ----------
 
 async function loadTemplates() {
-  const [templatesRes, suggestedRes] = await Promise.all([
+  const [templatesRes, suggestedRes, myTemplatesRes] = await Promise.all([
     fetch('/api/templates'),
     fetch(`/api/templates/suggested?date=${todayISO()}`),
+    fetch('/api/my-templates'),
   ]);
   const templates = await templatesRes.json();
   const { key: suggestedKey } = await suggestedRes.json();
+  const myTemplates = await myTemplatesRes.json();
+
+  const planOptions = templates
+    .map((t) => `<option value="${t.key}">${t.name}${t.focus ? ' — ' + t.focus : ''}</option>`)
+    .join('');
+  const myOptions = myTemplates.length
+    ? `<optgroup label="My Templates">${myTemplates
+        .map((t) => `<option value="${t.key}">${t.name}${t.focus ? ' — ' + t.focus : ''}</option>`)
+        .join('')}</optgroup>`
+    : '';
 
   const select = $('#template-select');
-  select.innerHTML = templates
-    .map((t) => `<option value="${t.key}">${t.name}${t.focus ? ' — ' + t.focus : ''}</option>`)
-    .join('') + '<option value="">Cardio day</option>';
+  select.innerHTML = planOptions + myOptions + '<option value="">Cardio day</option>';
   select.value = suggestedKey;
 }
 
@@ -237,6 +246,23 @@ async function loadActiveExercises() {
   renderExerciseList(exercises, loggedSets);
 }
 
+// Classic double-progression rule: once every weighted set last time hit
+// the top of the rep range, the next step is more weight rather than more
+// reps. Uses ex.previous (already fetched per exercise) — no extra request.
+const PROGRESSION_INCREMENT_KG = 2.5;
+
+function progressionSuggestion(ex) {
+  const sets = ex.previous?.sets || [];
+  const weighted = sets.filter((s) => s.weight_kg != null && s.reps != null);
+  if (!weighted.length) return null;
+  const allHitTop = weighted.every((s) => s.reps >= ex.target_reps_high);
+  if (!allHitTop) return null;
+
+  const lastWeight = weighted[weighted.length - 1].weight_kg;
+  const suggested = Math.round((lastWeight + PROGRESSION_INCREMENT_KG) * 2) / 2;
+  return `You hit the top of your rep range last time — try ${suggested}kg`;
+}
+
 function renderExerciseList(exercises, loggedSets = {}) {
   // A set logged beyond the template's target count (via "+ Add set")
   // still needs a row after a reload — go by whichever is higher.
@@ -288,6 +314,11 @@ function renderExerciseList(exercises, loggedSets = {}) {
             .join(' · ')}</div>`
         : '';
 
+      const suggestion = progressionSuggestion(ex);
+      const suggestionHtml = suggestion
+        ? `<div class="exercise-suggestion">💡 ${suggestion}</div>`
+        : '';
+
       const iconSrc = ex.exercise_image || EQUIPMENT_ICONS[ex.exercise_category] || EQUIPMENT_ICONS.bodyweight;
 
       return `
@@ -299,6 +330,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
               <div class="exercise-target">${ex.target_sets} × ${repsLabel}${ex.rest_seconds ? ` · rest ${ex.rest_seconds}s` : ''}</div>
               ${ex.notes ? `<div class="exercise-note">${ex.notes}</div>` : ''}
               ${previousSummary}
+              ${suggestionHtml}
             </div>
             <div class="exercise-actions">
               ${ex.exercise_image || ex.exercise_video
@@ -732,6 +764,137 @@ async function saveSchedule(planKey) {
     body: JSON.stringify({ weekdays }),
   });
   await loadPlans();
+}
+
+// ---------- My Templates (user-created, private) ----------
+
+let myTemplatesCache = [];
+let myTemplateExerciseSelect = null;
+
+async function loadMyTemplates() {
+  const res = await fetch('/api/my-templates');
+  myTemplatesCache = await res.json();
+
+  const list = $('#my-templates-list');
+  list.innerHTML = myTemplatesCache.length
+    ? `<div class="admin-template-list">${myTemplatesCache.map((t) => `
+        <div class="admin-template-row">
+          <span>${t.name}${t.focus ? ` — ${t.focus}` : ''} <span class="meta">· ${t.exercises.length} exercises</span></span>
+          <div class="exercise-actions">
+            <button type="button" class="secondary manage-my-template-btn" data-key="${t.key}">Manage exercises</button>
+            <button type="button" class="icon-btn delete-my-template-btn" data-id="${t.id}" title="Delete">✕</button>
+          </div>
+        </div>`).join('')}</div>`
+    : '<p class="exercise-target">No custom templates yet — create one below.</p>';
+
+  list.querySelectorAll('.manage-my-template-btn').forEach((btn) => {
+    btn.addEventListener('click', () => showMyTemplateManager(btn.dataset.key));
+  });
+  list.querySelectorAll('.delete-my-template-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this template? This cannot be undone.')) return;
+      await fetch(`/api/my-templates/${btn.dataset.id}`, { method: 'DELETE' });
+      await loadMyTemplates();
+      await loadTemplates();
+    });
+  });
+}
+
+async function onAddMyTemplate() {
+  const name = $('#my-template-name').value.trim();
+  if (!name) return alert('Name is required.');
+  const focus = $('#my-template-focus').value.trim();
+
+  const res = await fetch('/api/my-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, focus: focus || null }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return alert(data.error || 'Could not create template.');
+  }
+
+  $('#my-template-name').value = '';
+  $('#my-template-focus').value = '';
+  await loadMyTemplates();
+  await loadTemplates();
+}
+
+async function showMyTemplateManager(templateKey) {
+  const template = myTemplatesCache.find((t) => t.key === templateKey);
+  if (!template) return;
+
+  // The exercise library is only otherwise loaded once a workout is
+  // started — fetch it here too so this modal works even if none has been
+  // started yet this visit.
+  if (!state.exerciseLibrary.length) {
+    const res = await fetch('/api/exercises');
+    state.exerciseLibrary = await res.json();
+  }
+
+  const rows = template.exercises.map((ex) => `
+    <tr data-id="${ex.template_exercise_id}">
+      <td>${ex.exercise_name}</td>
+      <td>${ex.target_sets} × ${ex.target_reps_low}–${ex.target_reps_high}</td>
+      <td><button type="button" class="icon-btn remove-my-template-exercise-btn" title="Remove">✕</button></td>
+    </tr>`).join('');
+
+  const body = `
+    <table>
+      <thead><tr><th>Exercise</th><th>Target</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="3" class="meta">No exercises yet.</td></tr>'}</tbody>
+    </table>
+    <div class="card subtle" style="margin-top: 12px;">
+      <h3>Add exercise</h3>
+      <label>Exercise
+        <div id="my-tpl-ex-select"></div>
+      </label>
+      <div class="field-row-3">
+        <input type="number" id="my-tpl-ex-sets" placeholder="Sets" value="3" />
+        <input type="number" id="my-tpl-ex-reps-low" placeholder="Reps low" value="8" />
+        <input type="number" id="my-tpl-ex-reps-high" placeholder="Reps high" value="12" />
+      </div>
+      <button type="button" class="primary" id="add-my-template-exercise-btn">Add to template</button>
+    </div>
+  `;
+  openModal(template.name, template.focus || '', body);
+
+  myTemplateExerciseSelect = createIconSelect($('#my-tpl-ex-select'), {
+    items: state.exerciseLibrary.map((ex) => ({ value: ex.id, label: ex.name, icon: iconForExercise(ex) })),
+    placeholder: 'Choose an exercise',
+  });
+
+  $('#add-my-template-exercise-btn').addEventListener('click', async () => {
+    const res = await fetch(`/api/my-templates/${template.id}/exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        exercise_id: myTemplateExerciseSelect?.getValue(),
+        target_sets: parseInt($('#my-tpl-ex-sets').value, 10),
+        target_reps_low: parseInt($('#my-tpl-ex-reps-low').value, 10),
+        target_reps_high: parseInt($('#my-tpl-ex-reps-high').value, 10),
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return alert(data.error || 'Could not add exercise.');
+    }
+    closeModal();
+    await loadMyTemplates();
+    await loadTemplates();
+  });
+
+  $('#modal-body').querySelectorAll('.remove-my-template-exercise-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.closest('tr').dataset.id;
+      if (!confirm('Remove this exercise from the template?')) return;
+      await fetch(`/api/my-template-exercises/${id}`, { method: 'DELETE' });
+      closeModal();
+      await loadMyTemplates();
+      await loadTemplates();
+    });
+  });
 }
 
 // ---------- Calendar ----------
@@ -1344,6 +1507,7 @@ function init() {
   $('#finish-session-btn').addEventListener('click', finishSession);
   $('#rest-timer-skip').addEventListener('click', stopRestTimer);
   $('#add-exercise-btn').addEventListener('click', onAddExercise);
+  $('#add-my-template-btn').addEventListener('click', onAddMyTemplate);
   $('#save-stats-btn').addEventListener('click', saveBodyStats);
   $('#upload-photo-btn').addEventListener('click', uploadProgressPhoto);
   $('#nutri-calculate-btn').addEventListener('click', calculateNutrition);

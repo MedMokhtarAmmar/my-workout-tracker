@@ -235,6 +235,14 @@ function ensureAdminColumn(db) {
   }
 }
 
+// Lets a template be a user's own private custom one instead of shared
+// library content — see schema.sql for the plan_id/user_id split.
+function ensureTemplateUserIdColumn(db) {
+  const columns = db.prepare('PRAGMA table_info(templates)').all();
+  if (columns.some((c) => c.name === 'user_id')) return;
+  db.exec('ALTER TABLE templates ADD COLUMN user_id INTEGER REFERENCES users(id)');
+}
+
 module.exports = {
   ensureSessionExercisesMigration,
   ensureCalendarEventIdColumn,
@@ -243,4 +251,5 @@ module.exports = {
   ensureMultiUserMigration,
   ensurePasswordColumn,
   ensureAdminColumn,
+  ensureTemplateUserIdColumn,
 };

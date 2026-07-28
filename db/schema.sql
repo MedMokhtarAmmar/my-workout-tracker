@@ -28,11 +28,14 @@ CREATE TABLE IF NOT EXISTS plans (
   description TEXT
 );
 
--- Workout day templates (Upper A, Lower A, Push, Pull, Legs, etc.). Shared.
+-- Workout day templates (Upper A, Lower A, Push, Pull, Legs, etc.). Shared
+-- library by default (plan_id set, user_id NULL); a template with user_id
+-- set instead is a user's own private custom template (plan_id NULL).
 CREATE TABLE IF NOT EXISTS templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id INTEGER REFERENCES plans(id),
-  key TEXT UNIQUE NOT NULL,      -- 'upper_a', 'lower_a', ...
+  user_id INTEGER REFERENCES users(id),
+  key TEXT UNIQUE NOT NULL,      -- 'upper_a', 'lower_a', ... (custom: 'custom_<uuid>')
   name TEXT NOT NULL,            -- 'Upper A (Strength Focus)'
   focus TEXT
 );
