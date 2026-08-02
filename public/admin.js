@@ -70,13 +70,22 @@ async function loadStats() {
 
 // ---------- Exercises ----------
 
+const ADMIN_LIST_PAGE_SIZE = 15;
+let adminExercisesCache = [];
+let adminExercisesPage = 0;
+
 async function loadExercises() {
   const res = await fetch('/api/admin/exercises');
-  const exercises = await res.json();
+  adminExercisesCache = await res.json();
+  adminExercisesPage = 0;
+  renderAdminExercisesPage();
+}
+
+function renderAdminExercisesPage() {
   $('#admin-exercise-list').innerHTML = `
     <table>
       <thead><tr><th>Name</th><th>Category</th><th>Media</th><th></th></tr></thead>
-      <tbody>${exercises.map((e) => `
+      <tbody>${paginateItems(adminExercisesCache, adminExercisesPage, ADMIN_LIST_PAGE_SIZE).map((e) => `
         <tr data-id="${e.id}">
           <td>${e.name}</td>
           <td>${e.category || '-'}</td>
@@ -97,6 +106,11 @@ async function loadExercises() {
       }
       loadExercises();
     });
+  });
+
+  renderPagination($('#admin-exercise-pagination'), {
+    totalItems: adminExercisesCache.length, pageSize: ADMIN_LIST_PAGE_SIZE, page: adminExercisesPage,
+    onPageChange: (p) => { adminExercisesPage = p; renderAdminExercisesPage(); },
   });
 }
 
@@ -315,19 +329,32 @@ async function showTemplateManager(templateKey) {
 
 // ---------- Users ----------
 
+let adminUsersCache = [];
+let adminUsersPage = 0;
+
 async function loadUsers() {
   const res = await fetch('/api/admin/users');
-  const users = await res.json();
+  adminUsersCache = await res.json();
+  adminUsersPage = 0;
+  renderAdminUsersPage();
+}
+
+function renderAdminUsersPage() {
   $('#admin-users-list').innerHTML = `
     <table>
       <thead><tr><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
-      <tbody>${users.map((u) => `
+      <tbody>${paginateItems(adminUsersCache, adminUsersPage, ADMIN_LIST_PAGE_SIZE).map((u) => `
         <tr>
           <td>${u.email}</td>
           <td>${u.is_admin ? '<span class="chip-admin">Admin</span>' : '<span class="meta">User</span>'}</td>
           <td>${u.created_at}</td>
         </tr>`).join('')}</tbody>
     </table>`;
+
+  renderPagination($('#admin-users-pagination'), {
+    totalItems: adminUsersCache.length, pageSize: ADMIN_LIST_PAGE_SIZE, page: adminUsersPage,
+    onPageChange: (p) => { adminUsersPage = p; renderAdminUsersPage(); },
+  });
 }
 
 function init() {

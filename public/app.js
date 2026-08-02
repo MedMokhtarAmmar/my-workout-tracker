@@ -676,15 +676,26 @@ async function loadWeekProgress() {
 
 // ---------- History ----------
 
+const HISTORY_PAGE_SIZE = 10;
+let historySessions = [];
+let historyPage = 0;
+
 async function loadHistory() {
   const res = await fetch(`${API_BASE}/api/sessions`);
-  const sessions = await res.json();
+  historySessions = await res.json();
+  historyPage = 0;
+  renderHistoryPage();
+}
+
+function renderHistoryPage() {
   const list = $('#history-list');
-  if (sessions.length === 0) {
+  if (historySessions.length === 0) {
     list.innerHTML = '<p class="exercise-target">No sessions logged yet.</p>';
+    $('#history-pagination').innerHTML = '';
     return;
   }
-  list.innerHTML = sessions
+
+  list.innerHTML = paginateItems(historySessions, historyPage, HISTORY_PAGE_SIZE)
     .map(
       (s) => `
       <div class="history-item" data-id="${s.id}">
@@ -700,6 +711,11 @@ async function loadHistory() {
   list.querySelectorAll('.history-item').forEach((item) => {
     item.addEventListener('click', () => showSessionDetail(item.dataset.id));
   });
+
+  renderPagination($('#history-pagination'), {
+    totalItems: historySessions.length, pageSize: HISTORY_PAGE_SIZE, page: historyPage,
+    onPageChange: (p) => { historyPage = p; renderHistoryPage(); },
+  });
 }
 
 function showSessionDetail(id) {
@@ -710,11 +726,19 @@ function showSessionDetail(id) {
 
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const PLANS_LIST_PAGE_SIZE = 3;
+let plansCache = [];
+let plansPage = 0;
+
 async function loadPlans() {
   const res = await fetch(`${API_BASE}/api/plans`);
-  const plans = await res.json();
+  plansCache = await res.json();
+  plansPage = 0;
+  renderPlansPage();
+}
 
-  $('#plans-list').innerHTML = plans
+function renderPlansPage() {
+  $('#plans-list').innerHTML = paginateItems(plansCache, plansPage, PLANS_LIST_PAGE_SIZE)
     .map((p) => {
       const scheduledWeekdays = new Set(p.schedule.map((s) => s.weekday));
       const dayToggles = WEEKDAY_NAMES
@@ -752,6 +776,11 @@ async function loadPlans() {
   $$('.save-schedule-btn').forEach((btn) => {
     btn.addEventListener('click', () => saveSchedule(btn.dataset.planKey));
   });
+
+  renderPagination($('#plans-list-pagination'), {
+    totalItems: plansCache.length, pageSize: PLANS_LIST_PAGE_SIZE, page: plansPage,
+    onPageChange: (p) => { plansPage = p; renderPlansPage(); },
+  });
 }
 
 async function selectPlan(key) {
@@ -783,13 +812,20 @@ async function saveSchedule(planKey) {
 let myTemplatesCache = [];
 let myTemplateExerciseSelect = null;
 
+const MY_TEMPLATES_PAGE_SIZE = 10;
+let myTemplatesPage = 0;
+
 async function loadMyTemplates() {
   const res = await fetch(`${API_BASE}/api/my-templates`);
   myTemplatesCache = await res.json();
+  myTemplatesPage = 0;
+  renderMyTemplatesPage();
+}
 
+function renderMyTemplatesPage() {
   const list = $('#my-templates-list');
   list.innerHTML = myTemplatesCache.length
-    ? `<div class="admin-template-list">${myTemplatesCache.map((t) => `
+    ? `<div class="admin-template-list">${paginateItems(myTemplatesCache, myTemplatesPage, MY_TEMPLATES_PAGE_SIZE).map((t) => `
         <div class="admin-template-row">
           <span>${t.name}${t.focus ? ` — ${t.focus}` : ''} <span class="meta">· ${t.exercises.length} exercises</span></span>
           <div class="exercise-actions">
@@ -809,6 +845,11 @@ async function loadMyTemplates() {
       await loadMyTemplates();
       await loadTemplates();
     });
+  });
+
+  renderPagination($('#my-templates-pagination'), {
+    totalItems: myTemplatesCache.length, pageSize: MY_TEMPLATES_PAGE_SIZE, page: myTemplatesPage,
+    onPageChange: (p) => { myTemplatesPage = p; renderMyTemplatesPage(); },
   });
 }
 
@@ -1099,6 +1140,10 @@ async function loadExerciseOptions() {
   if (items.length) loadProgress(value);
 }
 
+const PROGRESS_TABLE_PAGE_SIZE = 15;
+let progressTableRows = [];
+let progressTablePage = 0;
+
 async function loadProgress(exerciseId) {
   const res = await fetch(`${API_BASE}/api/progress/exercise/${exerciseId}`);
   const rows = await res.json();
@@ -1117,20 +1162,33 @@ async function loadProgress(exerciseId) {
     options: themedLineChartOptions(),
   });
 
-  const tableRows = rows
-    .slice()
-    .reverse()
+  // Newest first for the table (the chart above stays in chronological
+  // order, which is what a trend line needs).
+  progressTableRows = rows.slice().reverse();
+  progressTablePage = 0;
+  renderProgressTablePage();
+}
+
+function renderProgressTablePage() {
+  const tableRows = paginateItems(progressTableRows, progressTablePage, PROGRESS_TABLE_PAGE_SIZE)
     .map((r) => `<tr><td>${r.date}</td><td>#${r.set_number}</td><td>${r.weight_kg ?? '-'}</td><td>${r.reps ?? '-'}</td></tr>`)
     .join('');
   $('#progress-table').innerHTML = `
     <table><thead><tr><th>Date</th><th>Set</th><th>Weight</th><th>Reps</th></tr></thead>
     <tbody>${tableRows}</tbody></table>`;
+
+  renderPagination($('#progress-table-pagination'), {
+    totalItems: progressTableRows.length, pageSize: PROGRESS_TABLE_PAGE_SIZE, page: progressTablePage,
+    onPageChange: (p) => { progressTablePage = p; renderProgressTablePage(); },
+  });
 }
 
 // ---------- Records & Favorites ----------
 
+const RECORDS_TABLE_PAGE_SIZE = 10;
 let recordsCache = [];
 let recordsSortKey = 'times_logged';
+let recordsPage = 0;
 
 function recordExerciseIcon(r) {
   return r.exercise_image ? API_BASE + r.exercise_image : (EQUIPMENT_ICONS[r.exercise_category] || EQUIPMENT_ICONS.bodyweight);
@@ -1139,6 +1197,7 @@ function recordExerciseIcon(r) {
 async function loadRecords() {
   const res = await fetch(`${API_BASE}/api/progress/records`);
   recordsCache = await res.json();
+  recordsPage = 0;
   renderRecordsTable();
 }
 
@@ -1147,7 +1206,7 @@ function renderRecordsTable() {
   $('#records-table').innerHTML = sorted.length ? `
     <table>
       <thead><tr><th>Exercise</th><th>Times logged</th><th>Avg weight</th><th>Top weight</th></tr></thead>
-      <tbody>${sorted.map((r) => `
+      <tbody>${paginateItems(sorted, recordsPage, RECORDS_TABLE_PAGE_SIZE).map((r) => `
         <tr>
           <td class="records-exercise-cell"><img class="records-icon" src="${recordExerciseIcon(r)}" alt="" />${r.exercise_name}</td>
           <td>${r.times_logged}</td>
@@ -1155,6 +1214,11 @@ function renderRecordsTable() {
           <td>${r.max_weight_kg != null ? r.max_weight_kg + 'kg' : '-'}</td>
         </tr>`).join('')}</tbody>
     </table>` : '<p class="exercise-target">No sets logged yet — your records will show up here once you do.</p>';
+
+  renderPagination($('#records-table-pagination'), {
+    totalItems: sorted.length, pageSize: RECORDS_TABLE_PAGE_SIZE, page: recordsPage,
+    onPageChange: (p) => { recordsPage = p; renderRecordsTable(); },
+  });
 }
 
 const FAVORITE_MEDALS = ['🥇', '🥈', '🥉'];
@@ -1206,11 +1270,27 @@ function renderReport(data) {
       <span class="stat-label">${label}</span>
     </div>`).join('');
 
-  $('#report-exercises').innerHTML = data.exercises.length ? `
+  reportExercisesCache = data.exercises;
+  reportExercisesPage = 0;
+  renderReportExercisesPage();
+
+  reportSessionsCache = data.sessions;
+  reportSessionsPage = 0;
+  renderReportSessionsPage();
+}
+
+const REPORT_LIST_PAGE_SIZE = 10;
+let reportExercisesCache = [];
+let reportExercisesPage = 0;
+let reportSessionsCache = [];
+let reportSessionsPage = 0;
+
+function renderReportExercisesPage() {
+  $('#report-exercises').innerHTML = reportExercisesCache.length ? `
     <h3>Exercises trained</h3>
     <table>
       <thead><tr><th>Exercise</th><th>Sets</th><th>Volume</th><th>Top set</th></tr></thead>
-      <tbody>${data.exercises.map((e) => `
+      <tbody>${paginateItems(reportExercisesCache, reportExercisesPage, REPORT_LIST_PAGE_SIZE).map((e) => `
         <tr>
           <td>${e.name}</td>
           <td>${e.sets}</td>
@@ -1219,11 +1299,23 @@ function renderReport(data) {
         </tr>`).join('')}</tbody>
     </table>` : '<p class="exercise-target">No sets logged in this period.</p>';
 
-  $('#report-sessions').innerHTML = data.sessions.length ? `
+  renderPagination($('#report-exercises-pagination'), {
+    totalItems: reportExercisesCache.length, pageSize: REPORT_LIST_PAGE_SIZE, page: reportExercisesPage,
+    onPageChange: (p) => { reportExercisesPage = p; renderReportExercisesPage(); },
+  });
+}
+
+function renderReportSessionsPage() {
+  $('#report-sessions').innerHTML = reportSessionsCache.length ? `
     <h3>Workouts</h3>
     <ul class="report-session-list">
-      ${data.sessions.map((s) => `<li>${s.date} — ${s.template_name || 'Cardio day'}</li>`).join('')}
+      ${paginateItems(reportSessionsCache, reportSessionsPage, REPORT_LIST_PAGE_SIZE).map((s) => `<li>${s.date} — ${s.template_name || 'Cardio day'}</li>`).join('')}
     </ul>` : '';
+
+  renderPagination($('#report-sessions-pagination'), {
+    totalItems: reportSessionsCache.length, pageSize: REPORT_LIST_PAGE_SIZE, page: reportSessionsPage,
+    onPageChange: (p) => { reportSessionsPage = p; renderReportSessionsPage(); },
+  });
 }
 
 function shiftReportRange(direction) {
@@ -1296,12 +1388,21 @@ async function uploadProgressPhoto() {
   }
 }
 
+const PHOTO_GALLERY_PAGE_SIZE = 12;
+let photoGalleryPhotos = [];
+let photoGalleryPage = 0;
+
 async function loadProgressPhotos() {
   const res = await fetch(`${API_BASE}/api/progress-photos`);
-  const photos = await res.json();
+  photoGalleryPhotos = (await res.json()).slice().reverse();
+  photoGalleryPage = 0;
+  renderPhotoGalleryPage();
+}
 
-  $('#photo-gallery').innerHTML = photos.length
-    ? photos.slice().reverse().map((p) => `
+function renderPhotoGalleryPage() {
+  const gallery = $('#photo-gallery');
+  gallery.innerHTML = photoGalleryPhotos.length
+    ? paginateItems(photoGalleryPhotos, photoGalleryPage, PHOTO_GALLERY_PAGE_SIZE).map((p) => `
         <div class="photo-card" data-id="${p.id}" data-date="${p.date}">
           <img src="${API_BASE}/api/progress-photos/${p.id}/image" alt="Progress photo from ${p.date}" loading="lazy" />
           <button type="button" class="photo-delete-btn" title="Delete photo">✕</button>
@@ -1312,19 +1413,24 @@ async function loadProgressPhotos() {
         </div>`).join('')
     : '<p class="exercise-target">No progress photos yet.</p>';
 
-  $('#photo-gallery').querySelectorAll('.photo-card img').forEach((img) => {
+  gallery.querySelectorAll('.photo-card img').forEach((img) => {
     img.addEventListener('click', () => {
       const card = img.closest('.photo-card');
       openModal('Progress photo', card.dataset.date, `<img src="${img.src}" style="width:100%; border-radius:8px; display:block;" />`);
     });
   });
-  $('#photo-gallery').querySelectorAll('.photo-delete-btn').forEach((btn) => {
+  gallery.querySelectorAll('.photo-delete-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const card = btn.closest('.photo-card');
       if (!confirm('Delete this photo?')) return;
       await fetch(`${API_BASE}/api/progress-photos/${card.dataset.id}`, { method: 'DELETE' });
       loadProgressPhotos();
     });
+  });
+
+  renderPagination($('#photo-gallery-pagination'), {
+    totalItems: photoGalleryPhotos.length, pageSize: PHOTO_GALLERY_PAGE_SIZE, page: photoGalleryPage,
+    onPageChange: (p) => { photoGalleryPage = p; renderPhotoGalleryPage(); },
   });
 }
 
@@ -1346,6 +1452,10 @@ async function saveBodyStats() {
   loadBodyStats();
 }
 
+const STATS_TABLE_PAGE_SIZE = 15;
+let statsTableRows = [];
+let statsTablePage = 0;
+
 async function loadBodyStats() {
   const res = await fetch(`${API_BASE}/api/body-stats`);
   const rows = await res.json();
@@ -1361,16 +1471,25 @@ async function loadBodyStats() {
     options: themedLineChartOptions(),
   });
 
+  statsTableRows = rows.slice().reverse();
+  statsTablePage = 0;
+  renderStatsTablePage();
+
+  const latestWeight = statsTableRows.find((r) => r.weight_kg != null)?.weight_kg;
+  if (latestWeight != null) $('#nutri-weight').value = latestWeight;
+}
+
+function renderStatsTablePage() {
   $('#stats-table').innerHTML = `
     <table><thead><tr><th>Date</th><th>Weight (kg)</th><th>Waist (cm)</th></tr></thead>
-    <tbody>${rows
-      .slice()
-      .reverse()
+    <tbody>${paginateItems(statsTableRows, statsTablePage, STATS_TABLE_PAGE_SIZE)
       .map((r) => `<tr><td>${r.date}</td><td>${r.weight_kg ?? '-'}</td><td>${r.waist_cm ?? '-'}</td></tr>`)
       .join('')}</tbody></table>`;
 
-  const latestWeight = rows.slice().reverse().find((r) => r.weight_kg != null)?.weight_kg;
-  if (latestWeight != null) $('#nutri-weight').value = latestWeight;
+  renderPagination($('#stats-table-pagination'), {
+    totalItems: statsTableRows.length, pageSize: STATS_TABLE_PAGE_SIZE, page: statsTablePage,
+    onPageChange: (p) => { statsTablePage = p; renderStatsTablePage(); },
+  });
 }
 
 // ---------- Nutrition calculator ----------
@@ -1592,6 +1711,7 @@ function init() {
   $$('#records-sort-toggle .segmented-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       recordsSortKey = btn.dataset.sort;
+      recordsPage = 0;
       $$('#records-sort-toggle .segmented-btn').forEach((b) => b.classList.toggle('active', b === btn));
       renderRecordsTable();
     });

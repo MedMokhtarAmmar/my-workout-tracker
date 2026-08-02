@@ -1029,6 +1029,27 @@ button { font-family: inherit; }
   min-width: 60px;
 }
 
+/* ---------- Pagination ---------- */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.pagination-label {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* ---------- Records & Favorites ---------- */
 
 #records-sort-toggle {

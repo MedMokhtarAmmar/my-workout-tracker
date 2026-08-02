@@ -8,6 +8,7 @@
 <script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
 <link rel="stylesheet" href="style.css" />
 <script src="icon-select.js"></script>
+<script src="pagination.js"></script>
 </head>
 <body>
   <header>
@@ -59,6 +60,7 @@
       <div class="card">
         <h2>All exercises</h2>
         <div id="admin-exercise-list"></div>
+        <div id="admin-exercise-pagination"></div>
       </div>
     </section>
 
@@ -85,6 +87,7 @@
       <div class="card">
         <h2>All users</h2>
         <div id="admin-users-list"></div>
+        <div id="admin-users-pagination"></div>
       </div>
     </section>
   </main>

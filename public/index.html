@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="style.css" />
 <script src="/vendor/chart.js/chart.umd.min.js"></script>
 <script src="icon-select.js"></script>
+<script src="pagination.js"></script>
 </head>
 <body>
   <header>
@@ -83,6 +84,7 @@
         <h2>My Templates</h2>
         <p class="exercise-target">Build your own workout, separate from the shared plans below. Available any time from the Today tab's workout picker.</p>
         <div id="my-templates-list"></div>
+        <div id="my-templates-pagination"></div>
         <div class="card subtle" style="margin-top: 12px;">
           <h3>New template</h3>
           <label>Name
@@ -95,6 +97,7 @@
         </div>
       </div>
       <div id="plans-list"></div>
+      <div id="plans-list-pagination"></div>
     </section>
 
     <!-- HISTORY -->
@@ -102,6 +105,7 @@
       <div class="card">
         <h2>Past sessions</h2>
         <div id="history-list"></div>
+        <div id="history-pagination"></div>
       </div>
     </section>
 
@@ -144,6 +148,7 @@
           </label>
           <canvas id="progress-chart" height="120"></canvas>
           <div id="progress-table"></div>
+          <div id="progress-table-pagination"></div>
         </div>
       </div>
 
@@ -156,6 +161,7 @@
             <button type="button" class="segmented-btn" data-sort="max_weight_kg">Top weight</button>
           </div>
           <div id="records-table"></div>
+          <div id="records-table-pagination"></div>
         </div>
       </div>
 
@@ -180,7 +186,9 @@
           </div>
           <div class="stat-grid" id="report-stats"></div>
           <div id="report-exercises"></div>
+          <div id="report-exercises-pagination"></div>
           <div id="report-sessions"></div>
+          <div id="report-sessions-pagination"></div>
         </div>
       </div>
 
@@ -201,6 +209,7 @@
         <div class="card">
           <h2>Timeline</h2>
           <div id="photo-gallery" class="photo-gallery"></div>
+          <div id="photo-gallery-pagination"></div>
         </div>
       </div>
     </section>
@@ -241,6 +250,7 @@
         <div class="card">
           <h2>History</h2>
           <div id="stats-table"></div>
+          <div id="stats-table-pagination"></div>
         </div>
       </div>
 
