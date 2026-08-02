@@ -7,7 +7,7 @@ const { seed, categorizeExercises, attachExerciseMedia } = require('./db/seed');
 const {
   ensureSessionExercisesMigration, ensureCalendarEventIdColumn, ensurePlansMigration,
   ensureExerciseMediaColumns, ensureMultiUserMigration, ensurePasswordColumn, ensureAdminColumn,
-  ensureTemplateUserIdColumn,
+  ensureTemplateUserIdColumn, ensurePlanCoverImageColumn,
 } = require('./db/migrate');
 const googleAuth = require('./lib/google');
 const SqliteSessionStore = require('./lib/sqlite-session-store');
@@ -30,6 +30,7 @@ ensureMultiUserMigration(db);
 ensurePasswordColumn(db);
 ensureAdminColumn(db);
 ensureTemplateUserIdColumn(db);
+ensurePlanCoverImageColumn(db);
 seed(db);
 categorizeExercises(db);
 attachExerciseMedia(db);

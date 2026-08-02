@@ -4,11 +4,20 @@
   --card-subtle: #1f232c;
   --text: #e8e9ed;
   --muted: #9aa0ac;
-  --accent: #4f8cff;
-  --accent-2: #34d399;
+  /* Energetic orange + green, tuned per-theme for contrast: vivid on dark
+     surfaces, deepened on light ones so text/links/focus stay readable.
+     --accent-strong is a darker fill for solid buttons (white text on top);
+     --*-rgb variables let box-shadow/gradient rgba() reuse the same hue at
+     any alpha without a separate variable per opacity. */
+  --accent: #f97316;
+  --accent-strong: #c2410c;
+  --accent-rgb: 249, 115, 22;
+  --accent-2: #22c55e;
+  --accent-2-rgb: 34, 197, 94;
   --border: #2a2e38;
   --border-hover: #3a3f4c;
   --danger: #f87171;
+  --danger-rgb: 248, 113, 113;
   --warning: #fbbf24;
 
   --input-bg: #10131a;
@@ -16,8 +25,8 @@
   --hover-overlay: rgba(255, 255, 255, 0.045);
   --hover-surface: #262b35;
   --body-bg:
-    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(79, 140, 255, 0.10), transparent),
-    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(52, 211, 153, 0.07), transparent),
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(var(--accent-rgb), 0.10), transparent),
+    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(var(--accent-2-rgb), 0.07), transparent),
     var(--bg);
 
   --radius: 12px;
@@ -25,7 +34,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.4);
-  --focus-ring: 0 0 0 3px rgba(79, 140, 255, 0.28);
+  --focus-ring: 0 0 0 3px rgba(var(--accent-rgb), 0.28);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -35,11 +44,15 @@
   --card-subtle: #eef0f3;
   --text: #171a21;
   --muted: #6b7280;
-  --accent: #4f8cff;
-  --accent-2: #1ea672;
+  --accent: #c2410c;
+  --accent-strong: #9a3412;
+  --accent-rgb: 194, 65, 12;
+  --accent-2: #15803d;
+  --accent-2-rgb: 21, 128, 61;
   --border: #e1e4ea;
   --border-hover: #c7cbd4;
   --danger: #dc2626;
+  --danger-rgb: 220, 38, 38;
   --warning: #b45309;
 
   --input-bg: #ffffff;
@@ -47,17 +60,26 @@
   --hover-overlay: rgba(15, 17, 21, 0.045);
   --hover-surface: #e7e9ee;
   --body-bg:
-    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(79, 140, 255, 0.06), transparent),
-    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(30, 166, 114, 0.05), transparent),
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(var(--accent-rgb), 0.06), transparent),
+    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(var(--accent-2-rgb), 0.05), transparent),
     var(--bg);
 
   --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.06);
   --shadow-md: 0 8px 24px rgba(20, 20, 30, 0.10);
   --shadow-lg: 0 16px 40px rgba(20, 20, 30, 0.14);
-  --focus-ring: 0 0 0 3px rgba(79, 140, 255, 0.22);
+  --focus-ring: 0 0 0 3px rgba(var(--accent-rgb), 0.22);
 }
 
 * { box-sizing: border-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 html { overflow-x: hidden; }
 
@@ -197,7 +219,7 @@ main {
 
 .segmented-btn.active {
   color: #fff;
-  background: linear-gradient(180deg, #5b96ff, var(--accent));
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   box-shadow: var(--shadow-sm);
 }
 
@@ -381,6 +403,7 @@ select {
 }
 
 .icon-select-option {
+  animation: fade-in 0.15s var(--ease);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -415,7 +438,7 @@ button { font-family: inherit; }
 /* Not tag-qualified (button.primary) on purpose — these are also used on
    the <a class="google-btn"> sign-in link on the login page. */
 .primary {
-  background: linear-gradient(180deg, #5b96ff, var(--accent));
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   color: #fff;
   border: none;
   padding: 10px 18px;
@@ -424,12 +447,12 @@ button { font-family: inherit; }
   font-weight: 600;
   cursor: pointer;
   width: 100%;
-  box-shadow: 0 2px 10px rgba(79, 140, 255, 0.28);
+  box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.28);
   transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease), opacity 0.12s var(--ease);
 }
 
-.primary:hover { opacity: 0.95; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(79, 140, 255, 0.36); }
-.primary:active { transform: translateY(0); box-shadow: 0 1px 6px rgba(79, 140, 255, 0.28); }
+.primary:hover { opacity: 0.95; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(var(--accent-rgb), 0.36); }
+.primary:active { transform: translateY(0); box-shadow: 0 1px 6px rgba(var(--accent-rgb), 0.28); }
 
 .secondary {
   background: var(--card-subtle);
@@ -461,12 +484,34 @@ button { font-family: inherit; }
 
 .hidden { display: none !important; }
 
-.exercise-block {
-  border-top: 1px solid var(--border);
-  padding: 14px 0;
+#exercise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 14px 0;
 }
 
-.exercise-block:first-child { border-top: none; }
+.exercise-block {
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+
+.exercise-block:hover,
+.exercise-block:focus-within {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  border-image: linear-gradient(135deg, var(--accent), var(--accent-2)) 1;
+  box-shadow: 0 10px 24px rgba(var(--accent-rgb), 0.14), var(--shadow-md);
+}
+
+.exercise-block.removing {
+  opacity: 0;
+  transform: scale(0.96) translateY(-4px);
+  pointer-events: none;
+}
 
 .exercise-header {
   display: flex;
@@ -519,7 +564,17 @@ button { font-family: inherit; }
   display: flex;
   gap: 6px;
   align-items: center;
-  margin: 8px 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin: 0;
+  transition: max-height 0.25s var(--ease), opacity 0.2s var(--ease), margin 0.25s var(--ease);
+}
+
+.replace-picker.open {
+  max-height: 60px;
+  opacity: 1;
+  margin: 10px 0;
 }
 
 .replace-picker .replace-select { flex: 1; min-width: 0; margin: 0; }
@@ -599,7 +654,7 @@ button { font-family: inherit; }
 }
 
 .login-error {
-  background: rgba(248, 113, 113, 0.12);
+  background: rgba(var(--danger-rgb), 0.12);
   border: 1px solid var(--danger);
   color: var(--danger);
   border-radius: var(--radius-sm);
@@ -610,7 +665,33 @@ button { font-family: inherit; }
 
 /* ---------- Plans tab ---------- */
 
-.plan-card.active-plan { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25), var(--shadow-sm); }
+.plan-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 10px 24px rgba(var(--accent-rgb), 0.12), var(--shadow-md);
+}
+
+.plan-card.active-plan { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(var(--accent-2-rgb), 0.25), var(--shadow-sm); }
+.plan-card.active-plan:hover { box-shadow: 0 0 0 1px rgba(var(--accent-2-rgb), 0.25), 0 10px 24px rgba(var(--accent-2-rgb), 0.16), var(--shadow-md); }
+
+.plan-cover {
+  width: calc(100% + 36px);
+  margin: -18px -18px 14px;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.plan-cover-preview {
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+  display: block;
+}
 
 .plan-card h2 {
   display: flex;
@@ -729,7 +810,7 @@ button { font-family: inherit; }
 .calendar-day .day-icon { font-size: 16px; line-height: 1; }
 
 .calendar-day.done {
-  background: rgba(52, 211, 153, 0.15);
+  background: rgba(var(--accent-2-rgb), 0.15);
   border-color: var(--accent-2);
   color: var(--text);
 }
@@ -877,6 +958,13 @@ button { font-family: inherit; }
   overflow: hidden;
   background: var(--card-subtle);
   box-shadow: var(--shadow-sm);
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.photo-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 10px 20px rgba(var(--accent-rgb), 0.14), var(--shadow-md);
 }
 
 .photo-card img {
@@ -989,7 +1077,7 @@ button { font-family: inherit; }
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(180deg, #5b96ff, var(--accent));
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   color: #fff;
   padding: 10px 20px;
   border-radius: 999px;
@@ -1049,6 +1137,82 @@ button { font-family: inherit; }
   opacity: 0.4;
   cursor: default;
 }
+
+/* ---------- Dropzone (drag-and-drop image upload, admin only) ---------- */
+
+.dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  padding: 20px;
+  margin-top: 4px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease), transform 0.15s var(--ease);
+}
+
+.dropzone:hover { border-color: var(--accent); }
+
+.dropzone.dropzone-active {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+  transform: scale(1.01);
+}
+
+.dropzone.dropzone-pending { pointer-events: none; opacity: 0.85; }
+
+/* The generic `input { display: block }` rule elsewhere in this file would
+   otherwise override this file input's `hidden` attribute and show the
+   native file-picker button on top of the dropzone. */
+.dropzone-input { display: none; }
+
+.dropzone-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.dropzone-icon {
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.dropzone-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.dropzone-preview {
+  max-width: 100%;
+  max-height: 140px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.dropzone-preview.hidden,
+.dropzone-placeholder.hidden,
+.dropzone-status.hidden {
+  display: none;
+}
+
+.dropzone-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  animation: fade-in 0.15s var(--ease);
+}
+
+.dropzone-status-pending { color: var(--accent); background: rgba(var(--accent-rgb), 0.14); }
+.dropzone-status-success { color: var(--accent-2); background: rgba(var(--accent-2-rgb), 0.16); }
+.dropzone-status-error { color: var(--danger); background: rgba(var(--danger-rgb), 0.14); }
 
 /* ---------- Records & Favorites ---------- */
 
@@ -1141,17 +1305,23 @@ button { font-family: inherit; }
 .stat-tile {
   background: var(--card-subtle);
   border: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  transition: border-color 0.15s var(--ease), transform 0.15s var(--ease);
 }
+
+.stat-tile:hover { border-color: var(--accent); transform: translateY(-2px); }
+.stat-tile:hover .stat-value { color: var(--accent); }
 
 .stat-value {
   font-size: 26px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  transition: color 0.15s var(--ease);
 }
 
 .stat-label {
@@ -1170,9 +1340,10 @@ button { font-family: inherit; }
 }
 
 .admin-template-list {
-  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 12px;
-  padding-top: 10px;
 }
 
 .admin-template-row {
@@ -1180,8 +1351,14 @@ button { font-family: inherit; }
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 0;
+  padding: 10px 12px;
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s var(--ease), transform 0.15s var(--ease);
 }
+
+.admin-template-row:hover { border-color: var(--accent); transform: translateX(2px); }
 
 .field-row-3 {
   display: grid;
@@ -1230,9 +1407,16 @@ button { font-family: inherit; }
   gap: 8px;
   align-items: center;
   margin-bottom: 6px;
+  border-radius: 6px;
+  transition: background-color 0.5s var(--ease);
 }
 
 .same-as-last-btn { font-size: 14px; }
+
+/* Briefly tints a set-row green right after it's first logged, so
+   completing a set reads as a small "done" moment rather than a silent
+   network call. See app.js's saveSet(). */
+.set-row.just-completed { background-color: rgba(var(--accent-2-rgb), 0.16); }
 
 .set-row span {
   color: var(--muted);
@@ -1324,6 +1508,13 @@ th { color: var(--muted); font-weight: 500; }
     align-items: start;
   }
   #plans-list .plan-card { margin-bottom: 0; }
+
+  #exercise-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
 
   #tab-calendar .card:first-child {
     max-width: 640px;

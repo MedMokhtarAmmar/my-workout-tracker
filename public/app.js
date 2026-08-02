@@ -352,7 +352,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
               <button type="button" class="icon-btn remove-btn" title="Remove exercise">✕</button>
             </div>
           </div>
-          <div class="replace-picker hidden">
+          <div class="replace-picker">
             <div class="replace-select"></div>
             <button type="button" class="secondary confirm-replace-btn">Confirm</button>
             <button type="button" class="secondary cancel-replace-btn">Cancel</button>
@@ -379,7 +379,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
     btn.addEventListener('click', onAddSetRow);
   });
   container.querySelectorAll('.cancel-replace-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => e.target.closest('.replace-picker').classList.add('hidden'));
+    btn.addEventListener('click', (e) => e.target.closest('.replace-picker').classList.remove('open'));
   });
   container.querySelectorAll('.howto-btn').forEach((btn) => {
     btn.addEventListener('click', () => showExerciseHowTo(btn.dataset.sessionExerciseId));
@@ -455,6 +455,12 @@ async function saveSet(sessionExerciseId, setNum, weight, reps) {
     checkForPR(sessionExerciseId, weight);
     const ex = state.activeExercises.find((x) => String(x.session_exercise_id) === String(sessionExerciseId));
     if (ex?.rest_seconds) startRestTimer(ex.rest_seconds);
+
+    const row = document.querySelector(`[data-se="${sessionExerciseId}"][data-set="${setNum}"][data-field="reps"]`)?.closest('.set-row');
+    if (row) {
+      row.classList.add('just-completed');
+      setTimeout(() => row.classList.remove('just-completed'), 900);
+    }
   }
 }
 
@@ -602,6 +608,12 @@ async function onAddExercise() {
 async function onRemoveExercise(e) {
   const block = e.target.closest('.exercise-block');
   if (!confirm("Remove this exercise from today's workout?")) return;
+
+  // Play the removal animation before the list re-renders, so the
+  // exercise visibly leaves instead of just vanishing on the next reload.
+  block.classList.add('removing');
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
   await fetch(`${API_BASE}/api/session-exercises/${block.dataset.sessionExerciseId}`, { method: 'DELETE' });
   await loadActiveExercises();
 }
@@ -609,8 +621,9 @@ async function onRemoveExercise(e) {
 function onToggleReplacePicker(e) {
   const block = e.target.closest('.exercise-block');
   const picker = block.querySelector('.replace-picker');
-  picker.classList.toggle('hidden');
-  if (!picker.classList.contains('hidden')) {
+  const opening = !picker.classList.contains('open');
+  picker.classList.toggle('open', opening);
+  if (opening) {
     const mount = picker.querySelector('.replace-select');
     // Stashed on the mount element itself since there's no longer a native
     // <select> to read .value from directly.
@@ -754,6 +767,7 @@ function renderPlansPage() {
 
       return `
       <div class="card plan-card ${p.active ? 'active-plan' : ''}">
+        ${p.cover_image ? `<img class="plan-cover" src="${API_BASE}${p.cover_image}" alt="${p.name} cover" />` : ''}
         <h2>${p.name} ${p.active ? '<span class="plan-badge">Active</span>' : ''}</h2>
         ${p.description ? `<div class="plan-description">${p.description}</div>` : ''}
         <div class="plan-days">

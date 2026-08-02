@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS plans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   key TEXT UNIQUE NOT NULL,      -- 'upper_lower', 'ppl'
   name TEXT NOT NULL,
-  description TEXT
+  description TEXT,
+  cover_image TEXT               -- e.g. /plan-covers/upper-lower.webp
 );
 
 -- Workout day templates (Upper A, Lower A, Push, Pull, Legs, etc.). Shared

@@ -243,6 +243,12 @@ function ensureTemplateUserIdColumn(db) {
   db.exec('ALTER TABLE templates ADD COLUMN user_id INTEGER REFERENCES users(id)');
 }
 
+function ensurePlanCoverImageColumn(db) {
+  const columns = db.prepare('PRAGMA table_info(plans)').all();
+  if (columns.some((c) => c.name === 'cover_image')) return;
+  db.exec('ALTER TABLE plans ADD COLUMN cover_image TEXT');
+}
+
 module.exports = {
   ensureSessionExercisesMigration,
   ensureCalendarEventIdColumn,
@@ -252,4 +258,5 @@ module.exports = {
   ensurePasswordColumn,
   ensureAdminColumn,
   ensureTemplateUserIdColumn,
+  ensurePlanCoverImageColumn,
 };

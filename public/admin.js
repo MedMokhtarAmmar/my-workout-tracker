@@ -114,18 +114,18 @@ function renderAdminExercisesPage() {
   });
 }
 
-const EXERCISE_IMAGE_MAX_DIMENSION = 1000;
+const ADMIN_IMAGE_MAX_DIMENSION = 1000;
 
-// Downscales onto a canvas before upload so a multi-MB phone photo of a gym
-// machine doesn't balloon the request (and long-term storage) once
-// base64-encoded.
+// Downscales onto a canvas before upload so a multi-MB phone photo (of a gym
+// machine, or a plan cover shot) doesn't balloon the request (and long-term
+// storage) once base64-encoded.
 function resizeImageToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       let { width, height } = img;
-      if (width > EXERCISE_IMAGE_MAX_DIMENSION || height > EXERCISE_IMAGE_MAX_DIMENSION) {
-        const scale = EXERCISE_IMAGE_MAX_DIMENSION / Math.max(width, height);
+      if (width > ADMIN_IMAGE_MAX_DIMENSION || height > ADMIN_IMAGE_MAX_DIMENSION) {
+        const scale = ADMIN_IMAGE_MAX_DIMENSION / Math.max(width, height);
         width = Math.round(width * scale);
         height = Math.round(height * scale);
       }
@@ -143,32 +143,47 @@ function resizeImageToDataUrl(file) {
   });
 }
 
+// The dropzone stages a resized image locally (drag/drop or click-to-browse,
+// with its own preview + "staged" success state) and the actual upload
+// happens as part of the single "Add exercise" request below, alongside the
+// name/category/video fields it's submitted together with — matching the
+// existing /api/admin/exercises contract with no backend change needed.
+let pendingExerciseImage = null;
+let exerciseDropzone = null;
+
 async function addExercise() {
   const name = $('#ex-name').value.trim();
   if (!name) return alert('Name is required.');
 
-  const file = $('#ex-image-file').files[0];
-  const image = file ? await resizeImageToDataUrl(file) : null;
+  const btn = $('#add-exercise-btn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  try {
+    const res = await fetch('/api/admin/exercises', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        category: $('#ex-category').value,
+        image: pendingExerciseImage,
+        video_url: $('#ex-video').value.trim() || null,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return alert(data.error || 'Could not add exercise.');
+    }
 
-  const res = await fetch('/api/admin/exercises', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name,
-      category: $('#ex-category').value,
-      image,
-      video_url: $('#ex-video').value.trim() || null,
-    }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return alert(data.error || 'Could not add exercise.');
+    $('#ex-name').value = '';
+    $('#ex-video').value = '';
+    pendingExerciseImage = null;
+    exerciseDropzone?.reset();
+    loadExercises();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
   }
-
-  $('#ex-name').value = '';
-  $('#ex-image-file').value = '';
-  $('#ex-video').value = '';
-  loadExercises();
 }
 
 // ---------- Plans ----------
@@ -179,6 +194,7 @@ async function loadPlans() {
 
   $('#admin-plans-list').innerHTML = plans.map((p) => `
     <div class="card">
+      ${p.cover_image ? `<img class="plan-cover-preview" src="${p.cover_image}" alt="${p.name} cover" />` : ''}
       <h2>${p.name} <span class="meta">(${p.key})</span></h2>
       ${p.description ? `<p class="exercise-target">${p.description}</p>` : ''}
       <div class="admin-template-list">
@@ -229,26 +245,40 @@ async function loadPlans() {
   });
 }
 
+let pendingPlanCover = null;
+let planCoverDropzone = null;
+
 async function addPlan() {
   const key = $('#plan-key').value.trim();
   const name = $('#plan-name').value.trim();
   const description = $('#plan-description').value.trim();
   if (!key || !name) return alert('Key and name are required.');
 
-  const res = await fetch('/api/admin/plans', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, name, description: description || null }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return alert(data.error || 'Could not add plan.');
-  }
+  const btn = $('#add-plan-btn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  try {
+    const res = await fetch('/api/admin/plans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, name, description: description || null, image: pendingPlanCover }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return alert(data.error || 'Could not add plan.');
+    }
 
-  $('#plan-key').value = '';
-  $('#plan-name').value = '';
-  $('#plan-description').value = '';
-  loadPlans();
+    $('#plan-key').value = '';
+    $('#plan-name').value = '';
+    $('#plan-description').value = '';
+    pendingPlanCover = null;
+    planCoverDropzone?.reset();
+    loadPlans();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 async function showTemplateManager(templateKey) {
@@ -360,6 +390,14 @@ function renderAdminUsersPage() {
 function init() {
   setupTabs();
   loadStats();
+  exerciseDropzone = createDropzone($('#ex-image-dropzone'), {
+    hint: 'Drag a photo here, or click to browse',
+    onFile: async (file) => { pendingExerciseImage = await resizeImageToDataUrl(file); },
+  });
+  planCoverDropzone = createDropzone($('#plan-cover-dropzone'), {
+    hint: 'Drag a cover image here, or click to browse',
+    onFile: async (file) => { pendingPlanCover = await resizeImageToDataUrl(file); },
+  });
   $('#add-exercise-btn').addEventListener('click', addExercise);
   $('#add-plan-btn').addEventListener('click', addPlan);
   $('#modal-close-btn').addEventListener('click', closeModal);

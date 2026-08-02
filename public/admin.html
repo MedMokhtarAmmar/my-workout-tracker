@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="style.css" />
 <script src="icon-select.js"></script>
 <script src="pagination.js"></script>
+<script src="dropzone.js"></script>
 </head>
 <body>
   <header>
@@ -50,7 +51,7 @@
           </select>
         </label>
         <label>Photo (optional)
-          <input type="file" accept="image/*" id="ex-image-file" />
+          <div id="ex-image-dropzone"></div>
         </label>
         <label>Video URL (optional)
           <input type="text" id="ex-video" placeholder="https://youtube.com/..." />
@@ -76,6 +77,9 @@
         </label>
         <label>Description (optional)
           <input type="text" id="plan-description" />
+        </label>
+        <label>Cover image (optional)
+          <div id="plan-cover-dropzone"></div>
         </label>
         <button id="add-plan-btn" class="primary">Add plan</button>
       </div>

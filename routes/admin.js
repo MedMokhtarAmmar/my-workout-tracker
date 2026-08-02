@@ -67,11 +67,18 @@ router.get('/admin/plans', (req, res) => {
   res.json(plans);
 });
 
+// image is an optional "data:image/...;base64,..." data URL from the admin
+// client's cover-image dropzone (see exercises' image upload for the same
+// pattern).
 router.post('/admin/plans', (req, res) => {
-  const { key, name, description } = req.body;
+  const { key, name, description, image } = req.body;
   if (!key || !name) return res.status(400).json({ error: 'Key and name are required.' });
   if (plansRepo.findPlanByKey(key)) return res.status(400).json({ error: 'A plan with this key already exists.' });
-  const id = plansRepo.createPlan(key, name, description);
+
+  const coverImage = image ? plansRepo.saveCoverImageFromDataUrl(image) : null;
+  if (image && !coverImage) return res.status(400).json({ error: 'Unrecognized image type — use jpeg, png, webp, or gif.' });
+
+  const id = plansRepo.createPlan(key, name, description, coverImage);
   res.json({ id });
 });
 
