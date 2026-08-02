@@ -47,9 +47,17 @@ function findPlanByKey(key) {
   return db.prepare('SELECT id FROM plans WHERE key = ?').get(key);
 }
 
+function findById(id) {
+  return db.prepare('SELECT * FROM plans WHERE id = ?').get(id);
+}
+
 function createPlan(key, name, description, coverImage) {
   return db.prepare('INSERT INTO plans (key, name, description, cover_image) VALUES (?, ?, ?, ?)')
     .run(key, name, description || null, coverImage || null).lastInsertRowid;
+}
+
+function updateCoverImage(id, coverImage) {
+  db.prepare('UPDATE plans SET cover_image = ? WHERE id = ?').run(coverImage, id);
 }
 
 function listTemplateSummaries(planId) {
@@ -85,7 +93,9 @@ module.exports = {
   getPlanSchedule,
   listPlans,
   findPlanByKey,
+  findById,
   createPlan,
+  updateCoverImage,
   listTemplateSummaries,
   listTemplateIds,
   replaceSchedule,

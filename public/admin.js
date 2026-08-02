@@ -197,6 +197,8 @@ async function loadPlans() {
       ${p.cover_image ? `<img class="plan-cover-preview" src="${p.cover_image}" alt="${p.name} cover" />` : ''}
       <h2>${p.name} <span class="meta">(${p.key})</span></h2>
       ${p.description ? `<p class="exercise-target">${p.description}</p>` : ''}
+      <button type="button" class="secondary toggle-cover-btn" data-plan-id="${p.id}">${p.cover_image ? 'Change cover image' : '+ Add cover image'}</button>
+      <div class="plan-cover-upload hidden" data-plan-id="${p.id}"></div>
       <div class="admin-template-list">
         ${p.templates.length ? p.templates.map((t) => `
           <div class="admin-template-row">
@@ -242,6 +244,33 @@ async function loadPlans() {
 
   $('#admin-plans-list').querySelectorAll('.manage-template-btn').forEach((btn) => {
     btn.addEventListener('click', () => showTemplateManager(btn.dataset.key));
+  });
+
+  $('#admin-plans-list').querySelectorAll('.toggle-cover-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mount = document.querySelector(`.plan-cover-upload[data-plan-id="${btn.dataset.planId}"]`);
+      mount.classList.toggle('hidden');
+      if (mount.classList.contains('hidden') || mount._dropzone) return;
+
+      mount._dropzone = createDropzone(mount, {
+        hint: 'Drag a cover image here, or click to browse',
+        onFile: async (file) => {
+          const image = await resizeImageToDataUrl(file);
+          const res = await fetch(`/api/admin/plans/${btn.dataset.planId}/cover`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Could not update cover.');
+          }
+          // Let the dropzone's own "✓ Uploaded" state flash briefly before
+          // the whole list re-renders with the new cover.
+          setTimeout(loadPlans, 900);
+        },
+      });
+    });
   });
 }
 

@@ -82,6 +82,18 @@ router.post('/admin/plans', (req, res) => {
   res.json({ id });
 });
 
+// Lets an already-created plan get (or replace) a cover image — creation
+// only took one at plan-creation time, with no way to add one afterward.
+router.put('/admin/plans/:id/cover', (req, res) => {
+  if (!plansRepo.findById(req.params.id)) return res.status(404).json({ error: 'Plan not found' });
+
+  const coverImage = plansRepo.saveCoverImageFromDataUrl(req.body.image);
+  if (!coverImage) return res.status(400).json({ error: 'Unrecognized image type — use jpeg, png, webp, or gif.' });
+
+  plansRepo.updateCoverImage(req.params.id, coverImage);
+  res.json({ cover_image: coverImage });
+});
+
 router.post('/admin/plans/:key/templates', (req, res) => {
   const plan = plansRepo.findPlanByKey(req.params.key);
   if (!plan) return res.status(404).json({ error: 'Plan not found' });
