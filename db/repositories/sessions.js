@@ -17,6 +17,28 @@ function prWeightsByExercise(userId) {
   return map;
 }
 
+// Per-exercise usage stats for the Progress tab's Records/Favorites
+// subtabs: how many distinct workouts included it, the average weight
+// used, and the all-time top weight. "Times logged" counts sessions
+// (workouts), not individual sets — closer to "how often do I do this
+// exercise" than "how many sets have I ever done of it".
+function recordsByExercise(userId) {
+  return db.prepare(`
+    SELECT e.id AS exercise_id, e.name AS exercise_name, e.category AS exercise_category,
+           e.image_path AS exercise_image,
+           COUNT(DISTINCT sl.session_id) AS times_logged,
+           AVG(sl.weight_kg) AS avg_weight_kg,
+           MAX(sl.weight_kg) AS max_weight_kg
+    FROM set_logs sl
+    JOIN session_exercises se ON se.id = sl.session_exercise_id
+    JOIN sessions s ON s.id = sl.session_id
+    JOIN exercises e ON e.id = se.exercise_id
+    WHERE s.user_id = ? AND sl.reps IS NOT NULL AND sl.weight_kg IS NOT NULL
+    GROUP BY e.id
+    ORDER BY times_logged DESC
+  `).all(userId);
+}
+
 function findForDate(userId, date) {
   return db.prepare(`
     SELECT s.*, t.name AS template_name, t.key AS template_key, t.focus AS template_focus
@@ -279,6 +301,7 @@ function inMonth(userId, monthPrefix) {
 module.exports = {
   init,
   prWeightsByExercise,
+  recordsByExercise,
   findForDate,
   create,
   cloneTemplateExercisesInto,

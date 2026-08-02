@@ -37,6 +37,24 @@ class Client {
   del(path) { return this.request(path, { method: 'DELETE' }); }
 }
 
+// Same as Client, but authenticates with `Authorization: Bearer <token>`
+// and never sends/stores a cookie — this is how the mobile app talks to the
+// API, since it has no same-origin session cookie to rely on.
+class TokenClient {
+  constructor(token) {
+    this.token = token;
+  }
+  async request(path, opts = {}) {
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}`, ...(opts.headers || {}) };
+    const res = await fetch(BASE_URL + path, { ...opts, headers });
+    let body = null;
+    try { body = await res.json(); } catch { /* non-JSON body, fine */ }
+    return { status: res.status, body };
+  }
+  get(path) { return this.request(path); }
+  post(path, data) { return this.request(path, { method: 'POST', body: JSON.stringify(data) }); }
+}
+
 const emailA = `regress-a-${STAMP}@regressiontest.local`;
 const emailB = `regress-b-${STAMP}@regressiontest.local`;
 const PASSWORD = 'regression-test-pw-123';
@@ -91,6 +109,44 @@ describe('auth', () => {
   test('unauthenticated request to a protected API route is rejected', async () => {
     const res = await new Client().get('/api/sessions');
     assert.equal(res.status, 401);
+  });
+});
+
+describe('token auth (mobile)', () => {
+  const email = `regress-token-${STAMP}@regressiontest.local`;
+  let token;
+
+  test('signup returns a bearer token', async () => {
+    const res = await new Client().post('/auth/signup', { email, password: PASSWORD });
+    assert.equal(res.status, 200);
+    assert.equal(typeof res.body.token, 'string');
+    token = res.body.token;
+  });
+
+  test('a protected route works with just the token, no cookie', async () => {
+    const res = await new TokenClient(token).get('/api/sessions');
+    assert.equal(res.status, 200);
+  });
+
+  test('login also returns a usable token', async () => {
+    const res = await new Client().post('/auth/login', { email, password: PASSWORD });
+    assert.equal(res.status, 200);
+    const check = await new TokenClient(res.body.token).get('/api/auth/status');
+    assert.equal(check.status, 200);
+    assert.equal(check.body.email, email);
+  });
+
+  test('an invalid token is rejected', async () => {
+    const res = await new TokenClient('not-a-real-token').get('/api/sessions');
+    assert.equal(res.status, 401);
+  });
+
+  test('logout revokes the token', async () => {
+    const client = new TokenClient(token);
+    const logoutRes = await client.post('/auth/logout', {});
+    assert.equal(logoutRes.status, 200);
+    const after = await client.get('/api/sessions');
+    assert.equal(after.status, 401);
   });
 });
 

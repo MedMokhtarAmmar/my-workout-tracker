@@ -154,3 +154,12 @@ CREATE TABLE IF NOT EXISTS login_sessions (
   data TEXT NOT NULL,
   expires INTEGER
 );
+
+-- Bearer tokens for non-browser clients (the mobile app) that can't rely on
+-- same-origin session cookies. Issued at login/signup, checked as a fallback
+-- in requireAuth/requireAdmin when there's no session, revoked on logout.
+CREATE TABLE IF NOT EXISTS api_tokens (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT DEFAULT (datetime('now'))
+);

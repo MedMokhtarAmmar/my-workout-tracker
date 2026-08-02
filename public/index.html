@@ -130,6 +130,8 @@
     <section id="tab-progress" class="tab-panel">
       <nav class="segmented subtab-nav">
         <button type="button" class="segmented-btn active" data-subtab="exercises">Exercises</button>
+        <button type="button" class="segmented-btn" data-subtab="records">Records</button>
+        <button type="button" class="segmented-btn" data-subtab="favorites">Favorites</button>
         <button type="button" class="segmented-btn" data-subtab="report">Report</button>
         <button type="button" class="segmented-btn" data-subtab="photos">Photos</button>
       </nav>
@@ -142,6 +144,26 @@
           </label>
           <canvas id="progress-chart" height="120"></canvas>
           <div id="progress-table"></div>
+        </div>
+      </div>
+
+      <div id="subtab-records" class="subtab-panel">
+        <div class="card">
+          <h2>Personal Records</h2>
+          <div class="segmented" id="records-sort-toggle">
+            <button type="button" class="segmented-btn active" data-sort="times_logged">Times logged</button>
+            <button type="button" class="segmented-btn" data-sort="avg_weight_kg">Avg weight</button>
+            <button type="button" class="segmented-btn" data-sort="max_weight_kg">Top weight</button>
+          </div>
+          <div id="records-table"></div>
+        </div>
+      </div>
+
+      <div id="subtab-favorites" class="subtab-panel">
+        <div class="card">
+          <h2>Top 3 Favorite Exercises</h2>
+          <p class="exercise-target">Based on how many workouts have included each exercise.</p>
+          <div id="favorites-list"></div>
         </div>
       </div>
 

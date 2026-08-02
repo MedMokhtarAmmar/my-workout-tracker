@@ -50,7 +50,17 @@
   </main>
 
   <script>
+    // See the same constant in app.js — empty on the web app, set to the
+    // server's origin by the mobile app.
+    const API_BASE = window.API_BASE || '';
+
     const GOOGLE_BTN_TEXT = { signin: 'Continue with Google', signup: 'Sign up with Google' };
+
+    // Cookie auth carries the web app; the mobile app has no usable
+    // same-origin cookie, so it authenticates with this token instead.
+    function storeToken(data) {
+      if (data.token) localStorage.setItem('api_token', data.token);
+    }
 
     function showMode(mode) {
       document.querySelectorAll('#auth-mode-toggle .segmented-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
@@ -78,12 +88,13 @@
       hideError();
       const email = document.getElementById('signin-email').value.trim();
       const password = document.getElementById('signin-password').value;
-      const res = await fetch('/auth/login', {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
       if (res.ok) {
+        storeToken(await res.json().catch(() => ({})));
         location.href = '/';
       } else {
         const data = await res.json().catch(() => ({}));
@@ -101,12 +112,13 @@
       if (password.length < 8) return showError('Password must be at least 8 characters.');
       if (password !== confirm) return showError('Passwords do not match.');
 
-      const res = await fetch('/auth/signup', {
+      const res = await fetch(`${API_BASE}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
       if (res.ok) {
+        storeToken(await res.json().catch(() => ({})));
         location.href = '/';
       } else {
         const data = await res.json().catch(() => ({}));

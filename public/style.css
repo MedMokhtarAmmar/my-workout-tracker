@@ -1029,6 +1029,58 @@ button { font-family: inherit; }
   min-width: 60px;
 }
 
+/* ---------- Records & Favorites ---------- */
+
+#records-sort-toggle {
+  margin-top: 12px;
+}
+
+.records-exercise-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.records-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: cover;
+  background: var(--card-subtle);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.favorite-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.favorite-row:first-child { border-top: none; }
+
+.favorite-medal {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.favorite-row .records-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.favorite-info { min-width: 0; }
+
+.favorite-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
 /* ---------- Reports ---------- */
 
 #report-period-toggle {
@@ -1140,6 +1192,13 @@ button { font-family: inherit; }
 .exercise-suggestion {
   font-size: 12px;
   color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.exercise-pr {
+  font-size: 12px;
+  color: var(--warning);
   font-weight: 600;
   margin-bottom: 8px;
 }

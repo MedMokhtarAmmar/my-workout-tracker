@@ -1,3 +1,8 @@
+// Empty on the web app, where the API is same-origin. The mobile app (which
+// serves these files from the app bundle, not the server) sets window.API_BASE
+// to the server's origin so API calls and server-hosted images still resolve.
+const API_BASE = window.API_BASE || '';
+
 // If the session cookie ever expires or is revoked, bounce to the login
 // page instead of every API call failing silently.
 const nativeFetch = window.fetch.bind(window);
@@ -117,6 +122,8 @@ function setupSubTabs() {
         // display:none, so nudge it once it's actually visible.
         if (btn.dataset.subtab === 'weight' && state.weightChart) state.weightChart.resize();
         if (btn.dataset.subtab === 'report') loadReport();
+        if (btn.dataset.subtab === 'records') loadRecords();
+        if (btn.dataset.subtab === 'favorites') loadFavorites();
       });
     });
   });
@@ -151,9 +158,9 @@ function setupThemeToggle() {
 
 async function loadTemplates() {
   const [templatesRes, suggestedRes, myTemplatesRes] = await Promise.all([
-    fetch('/api/templates'),
-    fetch(`/api/templates/suggested?date=${todayISO()}`),
-    fetch('/api/my-templates'),
+    fetch(`${API_BASE}/api/templates`),
+    fetch(`${API_BASE}/api/templates/suggested?date=${todayISO()}`),
+    fetch(`${API_BASE}/api/my-templates`),
   ]);
   const templates = await templatesRes.json();
   const { key: suggestedKey } = await suggestedRes.json();
@@ -192,7 +199,7 @@ async function startSession() {
 
   // The server resumes an existing session for this date instead of
   // creating a duplicate if one was already started.
-  const createRes = await fetch('/api/sessions', {
+  const createRes = await fetch(`${API_BASE}/api/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ date, template_key: templateKey, cardio_minutes: 0 }),
@@ -205,7 +212,7 @@ async function startSession() {
 // the tab mid-workout never loses progress or lets a second one start.
 async function resumeTodaySessionIfAny() {
   const date = todayISO();
-  const res = await fetch(`/api/sessions?date=${date}`);
+  const res = await fetch(`${API_BASE}/api/sessions?date=${date}`);
   const existing = await res.json();
   if (existing.length > 0) {
     await openActiveSession(existing[0], date);
@@ -213,7 +220,7 @@ async function resumeTodaySessionIfAny() {
 }
 
 async function loadExerciseLibrary() {
-  const res = await fetch('/api/exercises');
+  const res = await fetch(`${API_BASE}/api/exercises`);
   state.exerciseLibrary = await res.json();
   const items = state.exerciseLibrary.map((ex) => ({ value: ex.id, label: ex.name, icon: iconForExercise(ex) }));
   if (state.addExerciseSelect) {
@@ -225,8 +232,8 @@ async function loadExerciseLibrary() {
 
 async function loadActiveExercises() {
   const [exRes, sessionRes] = await Promise.all([
-    fetch(`/api/sessions/${state.activeSessionId}/exercises`),
-    fetch(`/api/sessions/${state.activeSessionId}`),
+    fetch(`${API_BASE}/api/sessions/${state.activeSessionId}/exercises`),
+    fetch(`${API_BASE}/api/sessions/${state.activeSessionId}`),
   ]);
   const exercises = await exRes.json();
   const session = await sessionRes.json();
@@ -319,7 +326,11 @@ function renderExerciseList(exercises, loggedSets = {}) {
         ? `<div class="exercise-suggestion">💡 ${suggestion}</div>`
         : '';
 
-      const iconSrc = ex.exercise_image || EQUIPMENT_ICONS[ex.exercise_category] || EQUIPMENT_ICONS.bodyweight;
+      // Uploaded exercise photos are served by the API; the fallback category
+      // icons ship with the app, so only the former needs API_BASE.
+      const iconSrc = ex.exercise_image
+        ? API_BASE + ex.exercise_image
+        : EQUIPMENT_ICONS[ex.exercise_category] || EQUIPMENT_ICONS.bodyweight;
 
       return `
         <div class="exercise-block" data-session-exercise-id="${ex.session_exercise_id}">
@@ -329,6 +340,7 @@ function renderExerciseList(exercises, loggedSets = {}) {
               <h3>${ex.exercise_name}</h3>
               <div class="exercise-target">${ex.target_sets} × ${repsLabel}${ex.rest_seconds ? ` · rest ${ex.rest_seconds}s` : ''}</div>
               ${ex.notes ? `<div class="exercise-note">${ex.notes}</div>` : ''}
+              ${ex.pr_weight_kg != null ? `<div class="exercise-pr">🏆 PR: ${ex.pr_weight_kg}kg</div>` : ''}
               ${previousSummary}
               ${suggestionHtml}
             </div>
@@ -409,7 +421,7 @@ function showExerciseHowTo(sessionExerciseId) {
   if (!ex) return;
 
   const body = `
-    ${ex.exercise_image ? `<img class="howto-image" src="${ex.exercise_image}" alt="${ex.exercise_name}" />` : ''}
+    ${ex.exercise_image ? `<img class="howto-image" src="${API_BASE}${ex.exercise_image}" alt="${ex.exercise_name}" />` : ''}
     ${ex.exercise_video ? `<div class="video-wrapper"><iframe src="${youtubeEmbedUrl(ex.exercise_video)}" title="How to: ${ex.exercise_name}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` : ''}
   `;
   openModal(ex.exercise_name, '', body);
@@ -424,13 +436,13 @@ async function saveSet(sessionExerciseId, setNum, weight, reps) {
   const isNewSet = !state.setLogIds[key];
 
   if (!isNewSet) {
-    await fetch(`/api/sets/${state.setLogIds[key]}`, {
+    await fetch(`${API_BASE}/api/sets/${state.setLogIds[key]}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reps, weight_kg: weight }),
     });
   } else {
-    const res = await fetch(`/api/sessions/${state.activeSessionId}/sets`, {
+    const res = await fetch(`${API_BASE}/api/sessions/${state.activeSessionId}/sets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_exercise_id: sessionExerciseId, set_number: setNum, reps, weight_kg: weight }),
@@ -579,7 +591,7 @@ function onAddSetRow(e) {
 async function onAddExercise() {
   const exerciseId = state.addExerciseSelect?.getValue();
   if (!exerciseId) return;
-  await fetch(`/api/sessions/${state.activeSessionId}/exercises`, {
+  await fetch(`${API_BASE}/api/sessions/${state.activeSessionId}/exercises`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ exercise_id: exerciseId, target_sets: 3, target_reps_low: 8, target_reps_high: 12 }),
@@ -590,7 +602,7 @@ async function onAddExercise() {
 async function onRemoveExercise(e) {
   const block = e.target.closest('.exercise-block');
   if (!confirm("Remove this exercise from today's workout?")) return;
-  await fetch(`/api/session-exercises/${block.dataset.sessionExerciseId}`, { method: 'DELETE' });
+  await fetch(`${API_BASE}/api/session-exercises/${block.dataset.sessionExerciseId}`, { method: 'DELETE' });
   await loadActiveExercises();
 }
 
@@ -613,7 +625,7 @@ async function onConfirmReplace(e) {
   const block = e.target.closest('.exercise-block');
   const exerciseId = block.querySelector('.replace-select')._iconSelect?.getValue();
   if (!exerciseId) return;
-  await fetch(`/api/session-exercises/${block.dataset.sessionExerciseId}`, {
+  await fetch(`${API_BASE}/api/session-exercises/${block.dataset.sessionExerciseId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ exercise_id: exerciseId }),
@@ -623,7 +635,7 @@ async function onConfirmReplace(e) {
 
 async function finishSession() {
   const cardio = parseInt($('#cardio-minutes').value, 10) || 0;
-  await fetch(`/api/sessions/${state.activeSessionId}`, {
+  await fetch(`${API_BASE}/api/sessions/${state.activeSessionId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cardio_minutes: cardio }),
@@ -642,8 +654,8 @@ async function finishSession() {
 
 async function loadWeekProgress() {
   const [weekRes, templatesRes] = await Promise.all([
-    fetch('/api/progress/week'),
-    fetch('/api/templates'),
+    fetch(`${API_BASE}/api/progress/week`),
+    fetch(`${API_BASE}/api/templates`),
   ]);
   const data = await weekRes.json();
   const allTemplates = await templatesRes.json();
@@ -665,7 +677,7 @@ async function loadWeekProgress() {
 // ---------- History ----------
 
 async function loadHistory() {
-  const res = await fetch('/api/sessions');
+  const res = await fetch(`${API_BASE}/api/sessions`);
   const sessions = await res.json();
   const list = $('#history-list');
   if (sessions.length === 0) {
@@ -699,7 +711,7 @@ function showSessionDetail(id) {
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 async function loadPlans() {
-  const res = await fetch('/api/plans');
+  const res = await fetch(`${API_BASE}/api/plans`);
   const plans = await res.json();
 
   $('#plans-list').innerHTML = plans
@@ -743,7 +755,7 @@ async function loadPlans() {
 }
 
 async function selectPlan(key) {
-  await fetch('/api/plans/active', {
+  await fetch(`${API_BASE}/api/plans/active`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key }),
@@ -758,7 +770,7 @@ async function saveSchedule(planKey) {
   const weekdays = Array.from(container.querySelectorAll('input'))
     .filter((i) => i.checked)
     .map((i) => parseInt(i.value, 10));
-  await fetch(`/api/plans/${planKey}/schedule`, {
+  await fetch(`${API_BASE}/api/plans/${planKey}/schedule`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ weekdays }),
@@ -772,7 +784,7 @@ let myTemplatesCache = [];
 let myTemplateExerciseSelect = null;
 
 async function loadMyTemplates() {
-  const res = await fetch('/api/my-templates');
+  const res = await fetch(`${API_BASE}/api/my-templates`);
   myTemplatesCache = await res.json();
 
   const list = $('#my-templates-list');
@@ -793,7 +805,7 @@ async function loadMyTemplates() {
   list.querySelectorAll('.delete-my-template-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!confirm('Delete this template? This cannot be undone.')) return;
-      await fetch(`/api/my-templates/${btn.dataset.id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/my-templates/${btn.dataset.id}`, { method: 'DELETE' });
       await loadMyTemplates();
       await loadTemplates();
     });
@@ -805,7 +817,7 @@ async function onAddMyTemplate() {
   if (!name) return alert('Name is required.');
   const focus = $('#my-template-focus').value.trim();
 
-  const res = await fetch('/api/my-templates', {
+  const res = await fetch(`${API_BASE}/api/my-templates`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, focus: focus || null }),
@@ -829,7 +841,7 @@ async function showMyTemplateManager(templateKey) {
   // started — fetch it here too so this modal works even if none has been
   // started yet this visit.
   if (!state.exerciseLibrary.length) {
-    const res = await fetch('/api/exercises');
+    const res = await fetch(`${API_BASE}/api/exercises`);
     state.exerciseLibrary = await res.json();
   }
 
@@ -866,7 +878,7 @@ async function showMyTemplateManager(templateKey) {
   });
 
   $('#add-my-template-exercise-btn').addEventListener('click', async () => {
-    const res = await fetch(`/api/my-templates/${template.id}/exercises`, {
+    const res = await fetch(`${API_BASE}/api/my-templates/${template.id}/exercises`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -889,7 +901,7 @@ async function showMyTemplateManager(templateKey) {
     btn.addEventListener('click', async () => {
       const id = btn.closest('tr').dataset.id;
       if (!confirm('Remove this exercise from the template?')) return;
-      await fetch(`/api/my-template-exercises/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/my-template-exercises/${id}`, { method: 'DELETE' });
       closeModal();
       await loadMyTemplates();
       await loadTemplates();
@@ -905,7 +917,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
 async function loadCalendar() {
   closeModal();
   const monthStr = `${state.calendarYear}-${String(state.calendarMonth).padStart(2, '0')}`;
-  const res = await fetch(`/api/calendar?month=${monthStr}`);
+  const res = await fetch(`${API_BASE}/api/calendar?month=${monthStr}`);
   const { sessionsByDate, schedule } = await res.json();
   renderCalendarGrid(state.calendarYear, state.calendarMonth, sessionsByDate, schedule);
 }
@@ -994,8 +1006,8 @@ function closeModal() {
 // in the popup modal rather than inline in the page.
 async function renderSessionDetail(sessionId, { includeDelete = false } = {}) {
   const [sessionRes, exercisesRes] = await Promise.all([
-    fetch(`/api/sessions/${sessionId}`),
-    fetch(`/api/sessions/${sessionId}/exercises`),
+    fetch(`${API_BASE}/api/sessions/${sessionId}`),
+    fetch(`${API_BASE}/api/sessions/${sessionId}/exercises`),
   ]);
   const session = await sessionRes.json();
   const exercises = await exercisesRes.json();
@@ -1027,7 +1039,7 @@ async function renderSessionDetail(sessionId, { includeDelete = false } = {}) {
   if (includeDelete) {
     $('#delete-session-btn').addEventListener('click', async () => {
       if (!confirm('Delete this session?')) return;
-      await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/sessions/${sessionId}`, { method: 'DELETE' });
       closeModal();
       loadHistory();
     });
@@ -1035,7 +1047,7 @@ async function renderSessionDetail(sessionId, { includeDelete = false } = {}) {
 }
 
 async function showScheduledDayDetail(templateKey, dateStr, status) {
-  const res = await fetch(`/api/templates/${templateKey}`);
+  const res = await fetch(`${API_BASE}/api/templates/${templateKey}`);
   const template = await res.json();
 
   const rows = template.exercises.map((ex) => {
@@ -1070,7 +1082,7 @@ function changeCalendarMonth(delta) {
 // ---------- Progress ----------
 
 async function loadExerciseOptions() {
-  const res = await fetch('/api/exercises');
+  const res = await fetch(`${API_BASE}/api/exercises`);
   const exercises = await res.json();
   const items = exercises.map((e) => ({ value: e.id, label: e.name, icon: iconForExercise(e) }));
 
@@ -1088,7 +1100,7 @@ async function loadExerciseOptions() {
 }
 
 async function loadProgress(exerciseId) {
-  const res = await fetch(`/api/progress/exercise/${exerciseId}`);
+  const res = await fetch(`${API_BASE}/api/progress/exercise/${exerciseId}`);
   const rows = await res.json();
 
   const labels = rows.map((r) => r.date);
@@ -1115,11 +1127,59 @@ async function loadProgress(exerciseId) {
     <tbody>${tableRows}</tbody></table>`;
 }
 
+// ---------- Records & Favorites ----------
+
+let recordsCache = [];
+let recordsSortKey = 'times_logged';
+
+function recordExerciseIcon(r) {
+  return r.exercise_image ? API_BASE + r.exercise_image : (EQUIPMENT_ICONS[r.exercise_category] || EQUIPMENT_ICONS.bodyweight);
+}
+
+async function loadRecords() {
+  const res = await fetch(`${API_BASE}/api/progress/records`);
+  recordsCache = await res.json();
+  renderRecordsTable();
+}
+
+function renderRecordsTable() {
+  const sorted = [...recordsCache].sort((a, b) => (b[recordsSortKey] ?? 0) - (a[recordsSortKey] ?? 0));
+  $('#records-table').innerHTML = sorted.length ? `
+    <table>
+      <thead><tr><th>Exercise</th><th>Times logged</th><th>Avg weight</th><th>Top weight</th></tr></thead>
+      <tbody>${sorted.map((r) => `
+        <tr>
+          <td class="records-exercise-cell"><img class="records-icon" src="${recordExerciseIcon(r)}" alt="" />${r.exercise_name}</td>
+          <td>${r.times_logged}</td>
+          <td>${r.avg_weight_kg != null ? r.avg_weight_kg + 'kg' : '-'}</td>
+          <td>${r.max_weight_kg != null ? r.max_weight_kg + 'kg' : '-'}</td>
+        </tr>`).join('')}</tbody>
+    </table>` : '<p class="exercise-target">No sets logged yet — your records will show up here once you do.</p>';
+}
+
+const FAVORITE_MEDALS = ['🥇', '🥈', '🥉'];
+
+async function loadFavorites() {
+  const res = await fetch(`${API_BASE}/api/progress/records`);
+  const records = await res.json();
+  const top3 = [...records].sort((a, b) => b.times_logged - a.times_logged).slice(0, 3);
+
+  $('#favorites-list').innerHTML = top3.length ? top3.map((r, i) => `
+    <div class="favorite-row">
+      <span class="favorite-medal">${FAVORITE_MEDALS[i]}</span>
+      <img class="records-icon" src="${recordExerciseIcon(r)}" alt="" />
+      <div class="favorite-info">
+        <div class="favorite-name">${r.exercise_name}</div>
+        <div class="meta">${r.times_logged} workouts · avg ${r.avg_weight_kg ?? '-'}kg · top ${r.max_weight_kg ?? '-'}kg</div>
+      </div>
+    </div>`).join('') : '<p class="exercise-target">No sets logged yet — your favorites will show up here once you do.</p>';
+}
+
 // ---------- Report ----------
 
 async function loadReport() {
   if (!state.reportDate) state.reportDate = todayISO();
-  const res = await fetch(`/api/reports?period=${state.reportPeriod}&date=${state.reportDate}`);
+  const res = await fetch(`${API_BASE}/api/reports?period=${state.reportPeriod}&date=${state.reportDate}`);
   const data = await res.json();
   renderReport(data);
 }
@@ -1218,7 +1278,7 @@ async function uploadProgressPhoto() {
   btn.disabled = true;
   try {
     const image = await resizeImageToDataUrl(file);
-    const res = await fetch('/api/progress-photos', {
+    const res = await fetch(`${API_BASE}/api/progress-photos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date, weight_kg: weightInput ? parseFloat(weightInput) : null, image }),
@@ -1237,13 +1297,13 @@ async function uploadProgressPhoto() {
 }
 
 async function loadProgressPhotos() {
-  const res = await fetch('/api/progress-photos');
+  const res = await fetch(`${API_BASE}/api/progress-photos`);
   const photos = await res.json();
 
   $('#photo-gallery').innerHTML = photos.length
     ? photos.slice().reverse().map((p) => `
         <div class="photo-card" data-id="${p.id}" data-date="${p.date}">
-          <img src="/api/progress-photos/${p.id}/image" alt="Progress photo from ${p.date}" loading="lazy" />
+          <img src="${API_BASE}/api/progress-photos/${p.id}/image" alt="Progress photo from ${p.date}" loading="lazy" />
           <button type="button" class="photo-delete-btn" title="Delete photo">✕</button>
           <div class="photo-meta">
             <span>${p.date}</span>
@@ -1262,7 +1322,7 @@ async function loadProgressPhotos() {
     btn.addEventListener('click', async () => {
       const card = btn.closest('.photo-card');
       if (!confirm('Delete this photo?')) return;
-      await fetch(`/api/progress-photos/${card.dataset.id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/progress-photos/${card.dataset.id}`, { method: 'DELETE' });
       loadProgressPhotos();
     });
   });
@@ -1275,7 +1335,7 @@ async function saveBodyStats() {
   const weight_kg = $('#stats-weight').value ? parseFloat($('#stats-weight').value) : null;
   const waist_cm = $('#stats-waist').value ? parseFloat($('#stats-waist').value) : null;
 
-  await fetch('/api/body-stats', {
+  await fetch(`${API_BASE}/api/body-stats`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ date, weight_kg, waist_cm }),
@@ -1287,7 +1347,7 @@ async function saveBodyStats() {
 }
 
 async function loadBodyStats() {
-  const res = await fetch('/api/body-stats');
+  const res = await fetch(`${API_BASE}/api/body-stats`);
   const rows = await res.json();
 
   const ctx = $('#weight-chart').getContext('2d');
@@ -1328,7 +1388,7 @@ function bmiCategory(bmi) {
 }
 
 async function loadNutritionProfile() {
-  const res = await fetch('/api/settings');
+  const res = await fetch(`${API_BASE}/api/settings`);
   const s = await res.json();
   if (s.nutrition_calorie_adjustment) $('#nutri-adjustment').value = s.nutrition_calorie_adjustment;
 }
@@ -1336,7 +1396,7 @@ async function loadNutritionProfile() {
 // Age/sex/height/activity/goal/body-fat now live on the Profile tab (single
 // source of truth) — the calculator just reads them and asks for weight.
 async function calculateNutrition() {
-  const profileRes = await fetch('/api/settings');
+  const profileRes = await fetch(`${API_BASE}/api/settings`);
   const profile = await profileRes.json();
   const age = parseFloat(profile.nutrition_age);
   const sex = profile.nutrition_sex;
@@ -1392,7 +1452,7 @@ async function calculateNutrition() {
   $('#nutri-results').innerHTML = `<table><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table>`;
   $('#nutri-results').classList.remove('hidden');
 
-  await fetch('/api/settings', {
+  await fetch(`${API_BASE}/api/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nutrition_calorie_adjustment: adjustmentInput }),
@@ -1402,7 +1462,7 @@ async function calculateNutrition() {
 // ---------- Settings ----------
 
 async function loadSettings() {
-  const res = await fetch('/api/settings');
+  const res = await fetch(`${API_BASE}/api/settings`);
   const settings = await res.json();
   $('#reminder-time').value = settings.reminder_time;
 }
@@ -1410,7 +1470,7 @@ async function loadSettings() {
 async function saveSettings() {
   const reminder_time = $('#reminder-time').value;
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  await fetch('/api/settings', {
+  await fetch(`${API_BASE}/api/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reminder_time, timezone }),
@@ -1422,9 +1482,9 @@ async function saveSettings() {
 
 async function loadProfile() {
   const [settingsRes, statusRes, statsRes] = await Promise.all([
-    fetch('/api/settings'),
-    fetch('/api/auth/status'),
-    fetch('/api/body-stats'),
+    fetch(`${API_BASE}/api/settings`),
+    fetch(`${API_BASE}/api/auth/status`),
+    fetch(`${API_BASE}/api/body-stats`),
   ]);
   const settings = await settingsRes.json();
   const status = await statusRes.json();
@@ -1454,7 +1514,7 @@ async function loadProfile() {
 }
 
 async function saveProfile() {
-  await fetch('/api/settings', {
+  await fetch(`${API_BASE}/api/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -1471,7 +1531,7 @@ async function saveProfile() {
 }
 
 async function logout() {
-  await fetch('/auth/logout', { method: 'POST' });
+  await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
   location.href = '/login.html';
 }
 
@@ -1479,10 +1539,10 @@ async function logout() {
 // even a workout logged before ever visiting Settings gets a calendar
 // reminder at the right local time instead of defaulting to UTC.
 async function ensureTimezone() {
-  const res = await fetch('/api/settings');
+  const res = await fetch(`${API_BASE}/api/settings`);
   const settings = await res.json();
   if (settings.timezone && settings.timezone !== 'UTC') return;
-  await fetch('/api/settings', {
+  await fetch(`${API_BASE}/api/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
@@ -1527,6 +1587,13 @@ function init() {
       state.reportPeriod = btn.dataset.period;
       $$('#report-period-toggle .segmented-btn').forEach((b) => b.classList.toggle('active', b === btn));
       loadReport();
+    });
+  });
+  $$('#records-sort-toggle .segmented-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      recordsSortKey = btn.dataset.sort;
+      $$('#records-sort-toggle .segmented-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      renderRecordsTable();
     });
   });
   $('#modal-close-btn').addEventListener('click', closeModal);

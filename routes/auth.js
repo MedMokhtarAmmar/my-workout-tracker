@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const googleAuth = require('../lib/google');
 const { hashPassword, verifyPassword } = require('../lib/password');
 const users = require('../db/repositories/users');
+const apiTokens = require('../db/repositories/apiTokens');
 
 const router = express.Router();
 
@@ -45,7 +46,9 @@ router.post('/signup', passwordAuthLimiter, (req, res) => {
   req.session.loggedIn = true;
   req.session.userId = userId;
   req.session.email = email;
-  res.json({ ok: true });
+  // The token is only used by non-browser clients (the mobile app); the web
+  // app's fetch calls ignore this extra field and keep using the cookie.
+  res.json({ ok: true, token: apiTokens.create(userId) });
 });
 
 router.post('/login', passwordAuthLimiter, (req, res) => {
@@ -63,7 +66,7 @@ router.post('/login', passwordAuthLimiter, (req, res) => {
   req.session.loggedIn = true;
   req.session.userId = user.id;
   req.session.email = email;
-  res.json({ ok: true });
+  res.json({ ok: true, token: apiTokens.create(user.id) });
 });
 
 router.get('/google', (req, res) => {
@@ -86,6 +89,13 @@ router.get('/google/callback', async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
+  // A Bearer-token request has no cookie session to destroy (server.js
+  // bypasses express-session for those), so revoke the token instead.
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) {
+    apiTokens.revoke(auth.slice('Bearer '.length));
+    return res.json({ ok: true });
+  }
   req.session.destroy(() => res.json({ ok: true }));
 });
 

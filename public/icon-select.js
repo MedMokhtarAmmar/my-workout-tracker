@@ -14,8 +14,11 @@ const EQUIPMENT_ICONS = {
 
 // An exercise's own uploaded photo doubles as its icon everywhere it's
 // listed; exercises without one fall back to a generic per-category icon.
+// Uploaded photos come from the server (so they need API_BASE, which the
+// mobile app sets — see app.js); the fallback icons ship with the app.
 function iconForExercise(exercise) {
-  return exercise.image_path || EQUIPMENT_ICONS[exercise.category] || EQUIPMENT_ICONS.bodyweight;
+  if (exercise.image_path) return (window.API_BASE || '') + exercise.image_path;
+  return EQUIPMENT_ICONS[exercise.category] || EQUIPMENT_ICONS.bodyweight;
 }
 
 // root: an empty container element to mount into.

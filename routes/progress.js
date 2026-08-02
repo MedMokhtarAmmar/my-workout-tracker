@@ -10,6 +10,23 @@ router.get('/progress/exercise/:exerciseId', (req, res) => {
   res.json(sessionsRepo.progressForExercise(req.session.userId, req.params.exerciseId));
 });
 
+// Backs the Progress tab's Records and Favorites subtabs — one row per
+// exercise this user has ever logged a completed set for, with usage
+// stats the client sorts/slices client-side (Records: all rows, sortable;
+// Favorites: top 3 by times_logged).
+router.get('/progress/records', (req, res) => {
+  const rows = sessionsRepo.recordsByExercise(req.session.userId);
+  res.json(rows.map((r) => ({
+    exercise_id: r.exercise_id,
+    exercise_name: r.exercise_name,
+    exercise_category: r.exercise_category,
+    exercise_image: r.exercise_image,
+    times_logged: r.times_logged,
+    avg_weight_kg: r.avg_weight_kg != null ? Math.round(r.avg_weight_kg * 10) / 10 : null,
+    max_weight_kg: r.max_weight_kg,
+  })));
+});
+
 router.get('/exercises', (req, res) => {
   res.json(exercisesRepo.listAll());
 });
